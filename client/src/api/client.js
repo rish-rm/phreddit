@@ -1,6 +1,4 @@
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL ||
-    `${window.location.protocol}//${window.location.hostname}:8000/api`).replace(/\/+$/, "");
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/+$/, "");
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -44,6 +42,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body)
     }),
+  updateCommunity: (id, body) =>
+    request(`/communities/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  deleteCommunity: (id) =>
+    request(`/communities/${id}`, {
+      method: "DELETE"
+    }),
   joinCommunity: (id) =>
     request(`/communities/${id}/join`, {
       method: "POST"
@@ -76,6 +83,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body)
     }),
+  updatePost: (id, body) =>
+    request(`/posts/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  deletePost: (id) =>
+    request(`/posts/${id}`, {
+      method: "DELETE"
+    }),
   votePost: (id, voteType) =>
     request(`/posts/${id}/vote`, {
       method: "POST",
@@ -85,6 +101,15 @@ export const api = {
     request("/comments", {
       method: "POST",
       body: JSON.stringify(body)
+    }),
+  updateComment: (id, body) =>
+    request(`/comments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  deleteComment: (id) =>
+    request(`/comments/${id}`, {
+      method: "DELETE"
     }),
   voteComment: (id, voteType) =>
     request(`/comments/${id}/vote`, {

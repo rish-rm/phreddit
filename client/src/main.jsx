@@ -1027,17 +1027,38 @@ function PostPage({ user, postId, setView, setMessage, onSuccess }) {
   );
 }
 
+function EditableItemRow({ title, subtitle, onEdit, onDelete }) {
+  return (
+    <div className="row-card">
+      <div className="row-card-text">
+        <span className="row-card-title">{title}</span>
+        {subtitle && <span className="row-card-subtitle">{subtitle}</span>}
+      </div>
+      <div className="row-card-actions">
+        <button onClick={onEdit}>Edit</button>
+        <button className="danger" onClick={onDelete}>Delete</button>
+      </div>
+    </div>
+  );
+}
+
 function ProfilePage({ user, setMessage, refreshToken, onUserRefresh }) {
   const [profile, setProfile] = useState(null);
   const [users, setUsers] = useState([]);
+  const [activeTab, setActiveTab] = useState("posts");
+  const [viewedUser, setViewedUser] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [localRefresh, setLocalRefresh] = useState(0);
+
+  const profileUser = viewedUser || user;
 
   useEffect(() => {
-    if (!user) return;
+    if (!profileUser?._id) return;
     api
-      .getProfileContent(user._id)
+      .getProfileContent(profileUser._id)
       .then((data) => setProfile(data))
       .catch((error) => setMessage(error.message));
-  }, [user, setMessage, refreshToken]);
+  }, [profileUser?._id, setMessage, refreshToken, localRefresh]);
 
   useEffect(() => {
     if (!user?.isAdmin) return;
@@ -1045,15 +1066,68 @@ function ProfilePage({ user, setMessage, refreshToken, onUserRefresh }) {
       .listUsers()
       .then((data) => setUsers(data.users || []))
       .catch((error) => setMessage(error.message));
-  }, [user, setMessage, refreshToken]);
+  }, [user, setMessage, refreshToken, localRefresh]);
+
+  function refresh() {
+    setLocalRefresh((n) => n + 1);
+  }
 
   async function deleteUser(targetUser) {
-    const ok = window.confirm(`Delete user ${targetUser.displayName}? This cannot be undone.`);
+    const ok = window.confirm(
+      `Delete user ${targetUser.displayName}? All of their communities, posts, and comments will also be deleted. This cannot be undone.`
+    );
     if (!ok) return;
     try {
       await api.deleteUser(targetUser._id);
       setMessage("User deleted successfully.");
+      if (viewedUser?._id === targetUser._id) setViewedUser(null);
+      refresh();
       onUserRefresh();
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function handleDelete(kind, item) {
+    const label =
+      kind === "post" ? `post "${item.title}"` :
+      kind === "community" ? `community "${item.name}" (its posts and comments will also be deleted)` :
+      "comment";
+    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+    try {
+      if (kind === "post") await api.deletePost(item._id);
+      else if (kind === "community") await api.deleteCommunity(item._id);
+      else await api.deleteComment(item._id);
+      setMessage(`${kind[0].toUpperCase() + kind.slice(1)} deleted successfully.`);
+      refresh();
+      onUserRefresh();
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function submitEdit(event) {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    try {
+      if (editing.kind === "post") {
+        await api.updatePost(editing.item._id, {
+          title: form.get("title"),
+          content: form.get("content")
+        });
+      } else if (editing.kind === "community") {
+        await api.updateCommunity(editing.item._id, {
+          name: form.get("name"),
+          description: form.get("description")
+        });
+      } else {
+        await api.updateComment(editing.item._id, {
+          content: form.get("content")
+        });
+      }
+      setMessage(`${editing.kind[0].toUpperCase() + editing.kind.slice(1)} updated successfully.`);
+      setEditing(null);
+      refresh();
     } catch (error) {
       setMessage(error.message);
     }
@@ -1063,48 +1137,134 @@ function ProfilePage({ user, setMessage, refreshToken, onUserRefresh }) {
     return (
       <main className="card">
         <h1>Guest Profile</h1>
-        <p>You are browsing as a guest.</p>
+        <p>You are browsing as a guest. Log in to see your profile.</p>
       </main>
     );
   }
 
+  const tabs = [
+    { id: "posts", label: "Posts" },
+    { id: "communities", label: "Communities" },
+    { id: "comments", label: "Comments" },
+    ...(user.isAdmin && !viewedUser ? [{ id: "users", label: "Users" }] : [])
+  ];
+
   return (
     <main className="card" aria-label="Profile Page">
-      <h1>Profile</h1>
-      <p><strong>Display name:</strong> {user.displayName}</p>
-      <p><strong>Email:</strong> {user.email}</p>
-      <p><strong>Member since:</strong> {formatDate(user.createdAt)}</p>
-      <p><strong>Reputation:</strong> {user.reputation}</p>
+      {viewedUser && (
+        <button onClick={() => { setViewedUser(null); setActiveTab("posts"); }}>
+          ← Back to your admin profile
+        </button>
+      )}
+      <h1>{viewedUser ? `${viewedUser.displayName}'s Profile` : "Profile"}</h1>
+      <p><strong>Display name:</strong> {profileUser.displayName}</p>
+      <p><strong>Email:</strong> {profileUser.email}</p>
+      <p><strong>Member since:</strong> {formatDate(profileUser.createdAt)}</p>
+      <p><strong>Reputation:</strong> {profileUser.reputation}</p>
 
-      {profile && (
-        <>
-          <h2>Posts Created</h2>
-          {(profile.posts || []).length === 0 ? <p>None</p> : profile.posts.map((post) => <p key={post._id}>{post.title}</p>)}
-          <h2>Communities Created</h2>
-          {(profile.communities || []).length === 0 ? <p>None</p> : profile.communities.map((community) => <p key={community._id}>{community.name}</p>)}
-          <h2>Comments Created</h2>
-          {(profile.comments || []).length === 0 ? <p>None</p> : profile.comments.map((comment) => <p key={comment._id}>{comment.content}</p>)}
-        </>
+      <div className="tab-row" role="tablist">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={activeTab === tab.id ? "tab active" : "tab"}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {editing && (
+        <form className="edit-form" onSubmit={submitEdit}>
+          <h3>Edit {editing.kind}</h3>
+          {editing.kind === "post" && (
+            <>
+              <label>Title<input name="title" defaultValue={editing.item.title} required maxLength={100} /></label>
+              <label>Content<textarea name="content" defaultValue={editing.item.content} required /></label>
+            </>
+          )}
+          {editing.kind === "community" && (
+            <>
+              <label>Name<input name="name" defaultValue={editing.item.name} required /></label>
+              <label>Description<textarea name="description" defaultValue={editing.item.description} required /></label>
+            </>
+          )}
+          {editing.kind === "comment" && (
+            <label>Content<textarea name="content" defaultValue={editing.item.content} required /></label>
+          )}
+          <div className="row-card-actions">
+            <button type="submit">Save</button>
+            <button type="button" onClick={() => setEditing(null)}>Cancel</button>
+          </div>
+        </form>
       )}
 
-      {user.isAdmin && (
-        <>
-          <h2>Admin: Non-admin Users</h2>
-          <div className="list-column">
-            {users.length === 0 ? (
-              <p>No users found.</p>
-            ) : (
-              users.map((listedUser) => (
-                <div key={listedUser._id} className="row-card">
-                  <span>{listedUser.displayName}</span>
-                  <span>{listedUser.email}</span>
-                  <span>Rep: {listedUser.reputation}</span>
-                  <button onClick={() => deleteUser(listedUser)}>Delete</button>
+      {activeTab === "posts" && (
+        <div className="list-column">
+          {(profile?.posts || []).length === 0 ? <p>No posts yet.</p> :
+            profile.posts.map((post) => (
+              <EditableItemRow
+                key={post._id}
+                title={post.title}
+                subtitle={post.community?.name ? `in ${post.community.name}` : ""}
+                onEdit={() => setEditing({ kind: "post", item: post })}
+                onDelete={() => handleDelete("post", post)}
+              />
+            ))}
+        </div>
+      )}
+
+      {activeTab === "communities" && (
+        <div className="list-column">
+          {(profile?.communities || []).length === 0 ? <p>No communities yet.</p> :
+            profile.communities.map((community) => (
+              <EditableItemRow
+                key={community._id}
+                title={community.name}
+                subtitle={community.description}
+                onEdit={() => setEditing({ kind: "community", item: community })}
+                onDelete={() => handleDelete("community", community)}
+              />
+            ))}
+        </div>
+      )}
+
+      {activeTab === "comments" && (
+        <div className="list-column">
+          {(profile?.comments || []).length === 0 ? <p>No comments yet.</p> :
+            profile.comments.map((comment) => (
+              <EditableItemRow
+                key={comment._id}
+                title={comment.content.length > 80 ? `${comment.content.slice(0, 80)}…` : comment.content}
+                subtitle={comment.post?.title ? `on "${comment.post.title}"` : ""}
+                onEdit={() => setEditing({ kind: "comment", item: comment })}
+                onDelete={() => handleDelete("comment", comment)}
+              />
+            ))}
+        </div>
+      )}
+
+      {activeTab === "users" && user.isAdmin && !viewedUser && (
+        <div className="list-column">
+          {users.length === 0 ? (
+            <p>No users found.</p>
+          ) : (
+            users.map((listedUser) => (
+              <div key={listedUser._id} className="row-card">
+                <div className="row-card-text">
+                  <span className="row-card-title">{listedUser.displayName}</span>
+                  <span className="row-card-subtitle">{listedUser.email} · Rep: {listedUser.reputation}</span>
                 </div>
-              ))
-            )}
-          </div>
-        </>
+                <div className="row-card-actions">
+                  <button onClick={() => { setViewedUser(listedUser); setActiveTab("posts"); }}>View profile</button>
+                  <button className="danger" onClick={() => deleteUser(listedUser)}>Delete</button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       )}
     </main>
   );
