@@ -34,23 +34,29 @@ Phreddit is a full-stack Reddit-inspired community forum app. It includes accoun
 ```text
 phreddit/
 ├── client/
-│   ├── e2e/
+│   ├── e2e/             # Playwright end-to-end tests
 │   ├── public/
 │   └── src/
-│       ├── api/
-│       ├── main.jsx
+│       ├── api/         # API client wrapper
+│       ├── components/  # Reusable UI components
+│       ├── pages/       # One module per view
+│       ├── utils/       # Formatting and sorting helpers
+│       ├── App.jsx      # Root component and view routing
+│       ├── main.jsx     # Entry point
 │       └── style.css
-├── images/
+├── images/              # Architecture diagrams
 ├── server/
-│   ├── middleware/
-│   ├── models/
-│   ├── routes/
-│   ├── tests/
-│   ├── utils/
-│   ├── init.js
+│   ├── middleware/      # Session/auth middleware
+│   ├── models/          # Mongoose schemas
+│   ├── routes/          # Express route handlers
+│   ├── tests/           # Unit and integration tests
+│   ├── utils/           # Validation, voting, cascade deletes
+│   ├── init.js          # Database seed script
 │   └── server.js
 └── README.md
 ```
+
+> The client dev server proxies `/api` requests to the backend (see `client/vite.config.js`), so the client needs no environment configuration for local development.
 
 ## Prerequisites
 
