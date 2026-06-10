@@ -78,6 +78,12 @@ export default function App() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!message) return;
+    const id = setTimeout(() => setMessage(""), 4000);
+    return () => clearTimeout(id);
+  }, [message]);
+
   return (
     <>
       {message && (

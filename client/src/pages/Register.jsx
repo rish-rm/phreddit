@@ -71,7 +71,10 @@ export default function Register({ setView, setMessage }) {
           value={form.confirmPassword}
           onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
         />
-        <button type="submit">Sign Up</button>
+        <div className="action-row">
+          <button type="submit">Sign Up</button>
+          <button type="button" onClick={() => setView("welcome")}>Back</button>
+        </div>
       </form>
     </main>
   );

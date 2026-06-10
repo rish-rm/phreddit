@@ -39,7 +39,10 @@ export default function Login({ setView, setUser, setMessage }) {
           value={form.password}
           onChange={(event) => setForm({ ...form, password: event.target.value })}
         />
-        <button type="submit">Login</button>
+        <div className="action-row">
+          <button type="submit">Login</button>
+          <button type="button" onClick={() => setView("welcome")}>Back</button>
+        </div>
       </form>
     </main>
   );
