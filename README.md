@@ -1,150 +1,122 @@
 # Phreddit
 
-Phreddit is a full-stack Reddit-inspired community forum app. It includes account creation, session-based login, communities, posts, threaded comments, voting, reputation, search, user profiles, and admin tools.
+Phreddit is a full-stack Reddit-inspired community forum built with React, Express, MongoDB, and Mongoose. It supports guest browsing, session-based accounts, communities, posts, link flair, threaded comments, reputation-aware voting, profile management, and admin moderation flows.
+
+The project is structured as a portfolio-ready MERN application with a polished responsive UI, isolated backend integration tests, and Playwright coverage for core browser workflows.
+
+## Screenshots
+
+![Home feed with persistent navigation and flair filtering](images/screenshots/home.png)
+
+![Admin profile user management](images/screenshots/admin-profile.png)
 
 ## Features
 
-- Register, log in, log out, and continue as a guest
-- Create and join communities
-- Create posts with optional link flair
-- Search posts by title, content, and comment text
-- Sort posts by newest, oldest, and recent activity
-- Add threaded comments and replies
-- Upvote and downvote posts and comments
-- Reputation-based voting restrictions
-- User profile pages with created communities, posts, and comments
-- Admin user listing and user deletion
-- Cascade deletion for users, communities, posts, and comments
-- Seed script with demo users, communities, posts, comments, and flairs
+- Guest browsing plus registration, login, logout, and persisted sessions
+- Persistent app banner and sidebar navigation across main app views
+- Community creation, membership, listings, and joined-community prioritization
+- Post creation, editing, deletion, flair display, flair filtering, and search
+- Newest, Oldest, and Active sorting, with Active based on latest comment activity
+- Threaded comments and replies with recursive display
+- Post/comment voting with one-vote-per-user and reputation restrictions
+- User profiles for posts, comments, and communities with edit/delete controls
+- Admin user list, acting as another user's profile, and cascade user deletion
+- Cascade deletion for communities, posts, comments, replies, and user-owned content
+- Responsive layout, keyboard-visible focus states, empty/loading/error states
+- Unit, integration, and Playwright e2e tests
 
 ## Tech Stack
 
-- React
-- Vite
-- Express
-- MongoDB
-- Mongoose
-- bcrypt
-- express-session
-- Playwright
-- Node test runner
+- React 18 and Vite
+- Express 5
+- MongoDB and Mongoose
+- bcrypt password hashing
+- express-session with optional Mongo-backed session store
+- Node test runner, Supertest, ESLint
+- Playwright for browser e2e tests
 
 ## Project Structure
 
 ```text
 phreddit/
 ├── client/
-│   ├── e2e/             # Playwright end-to-end tests
+│   ├── e2e/                 # Playwright browser tests
 │   ├── public/
 │   └── src/
-│       ├── api/         # API client wrapper
-│       ├── components/  # Reusable UI components
-│       ├── pages/       # One module per view
-│       ├── utils/       # Formatting and sorting helpers
-│       ├── App.jsx      # Root component and view routing
-│       ├── main.jsx     # Entry point
-│       └── style.css
-├── images/              # Architecture diagrams
+│       ├── api/             # Fetch wrapper and API contracts
+│       ├── components/      # Shared shell, navigation, cards, comments
+│       ├── pages/           # App views
+│       └── utils/           # Formatting and post sorting/count helpers
+├── images/
+│   ├── screenshots/         # README screenshots
+│   └── *.png                # Architecture diagrams
 ├── server/
-│   ├── middleware/      # Session/auth middleware
-│   ├── models/          # Mongoose schemas
-│   ├── routes/          # Express route handlers
-│   ├── tests/           # Unit and integration tests
-│   ├── utils/           # Validation, voting, cascade deletes
-│   ├── init.js          # Database seed script
-│   └── server.js
+│   ├── middleware/          # Auth/session helpers
+│   ├── models/              # Mongoose schemas
+│   ├── routes/              # Express API routes
+│   ├── tests/               # Unit and integration tests
+│   ├── utils/               # Validation, voting, cascade deletion, stats
+│   ├── init.js              # Seed/admin initialization script
+│   └── server.js            # App factory and server entrypoint
+├── package.json             # Root convenience scripts
 └── README.md
 ```
 
-> The client dev server proxies `/api` requests to the backend (see `client/vite.config.js`), so the client needs no environment configuration for local development.
-
-## Prerequisites
-
-- Node.js 20.19 or higher
-- npm
-- MongoDB running locally at `mongodb://127.0.0.1:27017`
-
 ## Setup
 
-Install server dependencies:
+Requirements:
+
+- Node.js 20.19 or newer
+- npm
+- MongoDB running locally
+
+Install dependencies from the repo root:
 
 ```bash
-cd server
-npm install
+npm run install:all
 ```
 
-Optionally copy the example environment file and adjust values:
+Create optional environment files:
 
 ```bash
-cp .env.example .env
+cp server/.env.example server/.env
+cp client/.env.example client/.env
 ```
 
-Initialize the database with an admin account and demo data:
+Initialize the database with an admin user and demo content:
 
 ```bash
-node init.js admin@example.com adminUser AdminPass123!
+MONGO_URI=mongodb://127.0.0.1:27017/phreddit \
+  node server/init.js admin@example.com adminUser AdminPass123!
 ```
 
-Start the API server:
+Start the backend:
 
 ```bash
-npm start
+npm --prefix server start
 ```
 
-Install client dependencies in a second terminal:
+Start the frontend in another terminal:
 
 ```bash
-cd client
-npm install
+npm --prefix client run dev
 ```
 
-Optionally copy the client environment example if your API is not on the default local port:
-
-```bash
-cp .env.example .env
-```
-
-Start the Vite dev server:
-
-```bash
-npm run dev
-```
-
-Open `http://localhost:5173`.
-
-## Testing
-
-Run server unit tests:
-
-```bash
-cd server
-npm run test:unit
-```
-
-Run server integration tests:
-
-```bash
-cd server
-npm run test:int
-```
-
-Run the client build:
-
-```bash
-cd client
-npm run build
-```
-
-Run the Playwright test after MongoDB, the server, and the client dev server are running:
-
-```bash
-cd client
-npm run test:e2e
-```
+Open `http://127.0.0.1:5173`.
 
 ## Demo Accounts
 
-The seed script creates the admin account from the command-line arguments. It also creates demo users with the password `DemoPass123!` so the app has sample content immediately after initialization.
+The seed script creates the admin account from the command line:
+
+- Email: `admin@example.com`
+- Display name: `adminUser`
+- Password: `AdminPass123!`
+
+It also creates demo users with the password `DemoPass123!`:
+
+- `alex@example.com`
+- `jamie@example.com`
+- `taylor@example.com`
 
 ## Environment Variables
 
@@ -152,12 +124,72 @@ Server:
 
 - `MONGO_URI`: MongoDB connection string. Defaults to `mongodb://127.0.0.1:27017/phreddit`.
 - `PORT`: API port. Defaults to `8000`.
-- `SESSION_SECRET`: Express session secret.
-- `CLIENT_ORIGIN`: Comma-separated list of allowed client origins. Defaults include local Vite origins.
-- `SESSION_COOKIE_SAMESITE`: Session cookie SameSite setting. Defaults to `lax`.
-- `SESSION_COOKIE_SECURE`: Set to `true` when serving cookies over HTTPS.
-- `JSON_BODY_LIMIT`: Maximum accepted JSON request body size. Defaults to `1mb`.
+- `SESSION_SECRET`: Secret used by `express-session`.
+- `CLIENT_ORIGIN`: Comma-separated allowed browser origins for CORS.
+- `SESSION_COOKIE_SAMESITE`: Cookie SameSite mode. Defaults to `lax`.
+- `SESSION_COOKIE_SECURE`: Set to `true` for HTTPS cookie delivery.
+- `JSON_BODY_LIMIT`: Express JSON body limit. Defaults to `1mb`.
 
 Client:
 
-- `VITE_API_BASE_URL`: API base URL. Defaults to the current browser host on port `8000`, under `/api`.
+- `VITE_API_BASE_URL`: Optional API base URL. Local development normally uses the Vite `/api` proxy.
+
+Testing:
+
+- `TEST_MONGO_URI`: Base MongoDB URI for integration tests. Each test process derives a unique database name from this URI.
+- `E2E_MONGO_URI`: MongoDB URI used by the Playwright web-server setup.
+
+## Scripts
+
+From the repo root:
+
+```bash
+npm run install:all
+npm run lint
+npm run lint:server
+npm run lint:client
+npm run build
+npm run test:unit
+npm run test:int
+npm run test:e2e
+```
+
+Equivalent package-level commands:
+
+```bash
+npm --prefix server run lint
+npm --prefix server run test:unit
+npm --prefix server run test:int
+npm --prefix client run lint
+npm --prefix client run build
+npm --prefix client run test:e2e
+```
+
+For integration and e2e tests, run MongoDB first. Example with an isolated local MongoDB instance:
+
+```bash
+mongod --dbpath /tmp/phreddit-mongo --port 27028 --bind_ip 127.0.0.1
+TEST_MONGO_URI=mongodb://127.0.0.1:27028/phreddit_int npm run test:int
+E2E_MONGO_URI=mongodb://127.0.0.1:27028/phreddit_e2e npm run test:e2e
+```
+
+## Architecture Notes
+
+- `server/server.js` exports `createApp()` for testability and `startServer()` for normal runtime startup.
+- Test auth can inject `x-test-user-id` while production auth uses session cookies.
+- Post listings use `server/utils/postStats.js` to attach recursive `commentCount` and `latestCommentAt` without relying on partially populated comments.
+- Frontend Active sort keeps posts with comment activity above empty posts and sorts by latest comment/reply timestamp.
+- Deletion helpers recursively remove comments/replies and clean references from users, posts, and communities.
+- User deletion also removes that user's vote records and corrects stored vote totals.
+- Playwright starts the client and server automatically, runs with one worker, and uses unique test data to avoid cross-test interference.
+
+## Repository Hygiene
+
+The `.gitignore` excludes dependency folders, build output, test artifacts, environment files, database files, spreadsheets, archives, and local OS files. Do not commit:
+
+- `node_modules/`
+- `client/dist/`
+- `.env`, `.env.local`, `.env.test`
+- `test-results/`, `playwright-report/`
+- local MongoDB data
+- temporary archives or grading spreadsheets
