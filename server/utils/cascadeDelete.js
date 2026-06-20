@@ -1,6 +1,7 @@
 import Comment from "../models/Comment.js";
 import Community from "../models/Community.js";
 import Post from "../models/Post.js";
+import Report from "../models/Report.js";
 import User from "../models/User.js";
 
 export async function deleteCommentAndReplies(commentId) {
@@ -29,7 +30,7 @@ export async function deleteCommentAndReplies(commentId) {
   await Comment.findByIdAndDelete(comment._id);
 }
 
-export async function deletePostAndComments(postId) {
+export async function deletePostAndComments(postId, { deleteReports = true } = {}) {
   const post = await Post.findById(postId);
   if (!post) return;
 
@@ -46,6 +47,15 @@ export async function deletePostAndComments(postId) {
     { createdPosts: post._id },
     { $pull: { createdPosts: post._id } }
   );
+
+  await User.updateMany(
+    { savedPosts: post._id },
+    { $pull: { savedPosts: post._id } }
+  );
+
+  if (deleteReports) {
+    await Report.deleteMany({ targetPost: post._id });
+  }
 
   await Post.findByIdAndDelete(post._id);
 }
@@ -130,6 +140,8 @@ export async function deleteUserCascade(userId) {
     { "votedBy.user": user._id },
     { $pull: { votedBy: { user: user._id } } }
   );
+
+  await Report.deleteMany({ reportedBy: user._id });
 
   await User.findByIdAndDelete(user._id);
 }

@@ -9,6 +9,7 @@ import commentRoutes from "./routes/commentRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
 import linkFlairRoutes from "./routes/linkflairRoutes.js";
 import postRoutes from "./routes/postRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import { attachCurrentUser } from "./middleware/auth.js";
 
@@ -81,6 +82,7 @@ export function createApp({ useSessionStore = true } = {}) {
   app.use("/api/linkflairs", linkFlairRoutes);
   app.use("/api/posts", postRoutes);
   app.use("/api/comments", commentRoutes);
+  app.use("/api/reports", reportRoutes);
 
   app.use((req, res) => {
     res.status(404).json({

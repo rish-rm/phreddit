@@ -4,6 +4,7 @@ import Comment from "../models/Comment.js";
 import Community from "../models/Community.js";
 import LinkFlair from "../models/LinkFlair.js";
 import Post from "../models/Post.js";
+import Report from "../models/Report.js";
 import User from "../models/User.js";
 
 function uniqueMongoUri(baseUri) {
@@ -36,7 +37,8 @@ export async function clearTestDb() {
     Community.deleteMany({}),
     Post.deleteMany({}),
     Comment.deleteMany({}),
-    LinkFlair.deleteMany({})
+    LinkFlair.deleteMany({}),
+    Report.deleteMany({})
   ]);
 }
 

@@ -5,6 +5,7 @@ import Post from "../models/Post.js";
 import User from "../models/User.js";
 import { requireAdmin, requireLogin } from "../middleware/auth.js";
 import { deleteUserCascade } from "../utils/cascadeDelete.js";
+import { attachPostStats } from "../utils/postStats.js";
 
 const router = express.Router();
 
@@ -20,6 +21,45 @@ router.get("/", requireLogin, requireAdmin, async (_req, res, next) => {
       isAdmin: false
     }).sort({ displayName: 1 });
     return res.json({ users });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/me/saved-posts/:postId", requireLogin, async (req, res, next) => {
+  try {
+    const post = await Post.findById(req.params.postId);
+    if (!post) {
+      return res.status(404).json({ error: "Post not found." });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.currentUser._id,
+      { $addToSet: { savedPosts: post._id } },
+      { new: true }
+    );
+
+    return res.json({
+      message: "Post saved.",
+      user
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/me/saved-posts/:postId", requireLogin, async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.currentUser._id,
+      { $pull: { savedPosts: req.params.postId } },
+      { new: true }
+    );
+
+    return res.json({
+      message: "Post removed from saved posts.",
+      user
+    });
   } catch (error) {
     next(error);
   }
@@ -58,11 +98,20 @@ router.get("/:id/profile-content", requireLogin, async (req, res, next) => {
       .populate("post", "title")
       .sort({ createdAt: -1 });
 
+    const savedPosts = await Post.find({
+      _id: { $in: user.savedPosts || [] }
+    })
+      .populate("postedBy", "displayName")
+      .populate("community", "name")
+      .populate("linkFlair", "content")
+      .sort({ createdAt: -1 });
+
     return res.json({
       user,
       communities,
       posts,
-      comments
+      comments,
+      savedPosts: await attachPostStats(savedPosts)
     });
   } catch (error) {
     next(error);

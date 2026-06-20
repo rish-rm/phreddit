@@ -4,6 +4,7 @@ import Comment from "./models/Comment.js";
 import Community from "./models/Community.js";
 import LinkFlair from "./models/LinkFlair.js";
 import Post from "./models/Post.js";
+import Report from "./models/Report.js";
 import User from "./models/User.js";
 import { validateEmail } from "./utils/validation.js";
 
@@ -16,7 +17,8 @@ async function clearDatabase() {
     Community.deleteMany({}),
     Post.deleteMany({}),
     Comment.deleteMany({}),
-    LinkFlair.deleteMany({})
+    LinkFlair.deleteMany({}),
+    Report.deleteMany({})
   ]);
 }
 
@@ -243,6 +245,12 @@ async function main() {
     content: "My pick is a smart mystery with a short runtime.",
     post: moviePost,
     commentedBy: jamie
+  });
+
+  await User.findByIdAndUpdate(admin._id, {
+    $set: {
+      savedPosts: [portfolioPost._id, deployPost._id]
+    }
   });
 
   console.log(`Initialized phreddit database with admin user ${admin.email}`);

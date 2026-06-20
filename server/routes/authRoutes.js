@@ -1,11 +1,12 @@
 import bcrypt from "bcrypt";
 import express from "express";
 import User from "../models/User.js";
+import { authRateLimiter } from "../middleware/rateLimit.js";
 import { validateRegistrationInput } from "../utils/validation.js";
 
 const router = express.Router();
 
-router.post("/register", async (req, res, next) => {
+router.post("/register", authRateLimiter, async (req, res, next) => {
   try {
     const validation = validateRegistrationInput(req.body);
     if (!validation.ok) {
@@ -50,7 +51,7 @@ router.post("/register", async (req, res, next) => {
   }
 });
 
-router.post("/login", async (req, res, next) => {
+router.post("/login", authRateLimiter, async (req, res, next) => {
   try {
     const email = String(req.body.email || "").trim().toLowerCase();
     const password = String(req.body.password || "");
