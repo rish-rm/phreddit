@@ -30,7 +30,7 @@ export default function Banner({
         type="text"
         className="banner-search"
         aria-label="Search Phreddit"
-        placeholder="Search Phreddit…"
+        placeholder="Search Phreddit..."
         value={searchValue}
         onChange={(event) => onSearchChange(event.target.value)}
         onKeyDown={handleSearchKey}

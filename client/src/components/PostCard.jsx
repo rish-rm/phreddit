@@ -1,4 +1,5 @@
 import { displayNameOfUser, flairContentOf, formatDate, renderTextWithLinks } from "../utils/format.jsx";
+import { commentCountOf } from "../utils/posts.js";
 
 export default function PostCard({ post, onOpenPost, onOpenCommunity }) {
   return (
@@ -21,7 +22,7 @@ export default function PostCard({ post, onOpenPost, onOpenCommunity }) {
       <p className="meta-row">
         <span>{formatDate(post.createdAt)}</span>
         <span>Views: {post.views ?? 0}</span>
-        <span>Comments: {Array.isArray(post.comments) ? post.comments.length : 0}</span>
+        <span>Comments: {commentCountOf(post)}</span>
         <span>Upvotes: {post.upvotes ?? 0}</span>
         <span>Downvotes: {post.downvotes ?? 0}</span>
       </p>

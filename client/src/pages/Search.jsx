@@ -7,13 +7,14 @@ import { sortPostsClient } from "../utils/posts.js";
 export default function Search({
   user,
   query,
-  setView,
   setMessage,
-  setSelectedPostId,
-  setSelectedCommunityId,
+  onOpenPost,
+  onOpenCommunity,
   refreshToken
 }) {
   const [posts, setPosts] = useState([]);
+  const [flairs, setFlairs] = useState([]);
+  const [selectedFlair, setSelectedFlair] = useState("");
   const [currentSort, setCurrentSort] = useState("newest");
 
   useEffect(() => {
@@ -21,21 +22,16 @@ export default function Search({
       setPosts([]);
       return;
     }
-    api
-      .getPosts({ search: query })
-      .then((data) => setPosts(data.posts || []))
+    Promise.all([
+      api.getPosts({ search: query, linkFlair: selectedFlair }),
+      api.getLinkFlairs().catch(() => ({ linkFlairs: [] }))
+    ])
+      .then(([postData, flairData]) => {
+        setPosts(postData.posts || []);
+        setFlairs(flairData.linkFlairs || []);
+      })
       .catch((error) => setMessage(error.message));
-  }, [query, setMessage, refreshToken]);
-
-  function openCommunity(id) {
-    setSelectedCommunityId(id);
-    setView("community");
-  }
-
-  function openPost(id) {
-    setSelectedPostId(id);
-    setView("post");
-  }
+  }, [query, setMessage, refreshToken, selectedFlair]);
 
   const sortedPosts = sortPostsClient(posts, currentSort);
   const headerText = sortedPosts.length === 0
@@ -45,16 +41,35 @@ export default function Search({
   return (
     <main className="card" aria-label="Search Results Page">
       <div className="page-header">
-        <h2>{headerText}</h2>
+        <div>
+          <h1>Search</h1>
+          <p className="page-subtitle">{headerText}</p>
+        </div>
         <SortButtons currentSort={currentSort} onSortChange={setCurrentSort} />
+      </div>
+      <div className="filter-row">
+        <label htmlFor="searchFlair">Flair</label>
+        <select
+          id="searchFlair"
+          value={selectedFlair}
+          onChange={(event) => setSelectedFlair(event.target.value)}
+        >
+          <option value="">All flairs</option>
+          {flairs.map((flair) => (
+            <option key={flair._id} value={flair._id}>{flair.content}</option>
+          ))}
+        </select>
+        {selectedFlair && (
+          <button type="button" onClick={() => setSelectedFlair("")}>Clear</button>
+        )}
       </div>
       <p className="post-count">{sortedPosts.length} posts</p>
       <div className="list-column">
         <PostList
           posts={sortedPosts}
           user={user}
-          onOpenPost={openPost}
-          onOpenCommunity={openCommunity}
+          onOpenPost={onOpenPost}
+          onOpenCommunity={onOpenCommunity}
         />
       </div>
     </main>

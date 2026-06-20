@@ -62,6 +62,7 @@ export const api = {
   getPosts: (params = {}) => {
     const query = new URLSearchParams();
     if (params.community) query.set("community", params.community);
+    if (params.linkFlair) query.set("linkFlair", params.linkFlair);
     if (params.search) query.set("search", params.search);
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return request(`/posts${suffix}`);

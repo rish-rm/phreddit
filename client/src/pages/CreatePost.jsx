@@ -46,6 +46,10 @@ export default function CreatePost({ user, setView, setMessage, onSuccess }) {
   async function submit(event) {
     event.preventDefault();
 
+    if (!form.community) {
+      setMessage("Choose a community before creating a post.");
+      return;
+    }
     if (!form.title.trim() || form.title.length > 100) {
       setMessage("Title is required and must be 100 characters or less.");
       return;
@@ -85,11 +89,14 @@ export default function CreatePost({ user, setView, setMessage, onSuccess }) {
     <main className="card" aria-label="Create Post Page">
       <h1>Create Post</h1>
       <form onSubmit={submit}>
-        <label>Community*</label>
+        <label htmlFor="postCommunity">Community*</label>
         <select
+          id="postCommunity"
           value={form.community}
           onChange={(event) => setForm({ ...form, community: event.target.value })}
+          disabled={communities.length === 0}
         >
+          {communities.length === 0 && <option value="">No communities available</option>}
           {communities.map((community) => (
             <option key={community._id} value={community._id}>
               {community.name}
@@ -97,19 +104,23 @@ export default function CreatePost({ user, setView, setMessage, onSuccess }) {
           ))}
         </select>
 
-        <label>Title* (max 100 chars)</label>
+        <label htmlFor="postTitle">Title* (max 100 chars)</label>
         <input
+          id="postTitle"
           placeholder="Post title"
+          maxLength={100}
+          required
           value={form.title}
           onChange={(event) => setForm({ ...form, title: event.target.value })}
         />
 
-        <label>Link flair (optional)</label>
+        <label htmlFor="postFlair">Link flair (optional)</label>
         <select
+          id="postFlair"
           value={form.linkFlair}
           onChange={(event) => setForm({ ...form, linkFlair: event.target.value })}
         >
-          <option value="">— No flair —</option>
+          <option value="">No flair</option>
           {flairs.map((flair) => (
             <option key={flair._id} value={flair._id}>
               {flair.content}
@@ -117,21 +128,27 @@ export default function CreatePost({ user, setView, setMessage, onSuccess }) {
           ))}
         </select>
 
-        <label>Or new flair (max 30 chars)</label>
+        <label htmlFor="postNewFlair">Or new flair (max 30 chars)</label>
         <input
+          id="postNewFlair"
           placeholder="New flair text"
+          maxLength={30}
           value={form.newFlair}
           onChange={(event) => setForm({ ...form, newFlair: event.target.value })}
         />
 
-        <label>Content*</label>
+        <label htmlFor="postContent">Content*</label>
         <textarea
+          id="postContent"
           placeholder="Post content"
+          required
           value={form.content}
           onChange={(event) => setForm({ ...form, content: event.target.value })}
         />
-        <button type="submit">Submit</button>
-        <button type="button" onClick={() => setView("home")}>Cancel</button>
+        <div className="action-row">
+          <button type="submit" disabled={communities.length === 0}>Submit</button>
+          <button type="button" onClick={() => setView("home")}>Cancel</button>
+        </div>
       </form>
     </main>
   );

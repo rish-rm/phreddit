@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api/client.js";
+import AppShell from "./components/AppShell.jsx";
 import Banner from "./components/Banner.jsx";
 import Welcome from "./pages/Welcome.jsx";
 import Register from "./pages/Register.jsx";
@@ -21,6 +22,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [message, setMessage] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
+  const [communities, setCommunities] = useState([]);
+
+  const isAppView = !["welcome", "register", "login"].includes(view);
 
   function goHome() {
     setSelectedCommunityId(null);
@@ -40,6 +44,17 @@ export default function App() {
     }
     setSearchQuery(query);
     setView("search");
+  }
+
+  function openCommunity(id) {
+    setSelectedCommunityId(id);
+    setSelectedPostId(null);
+    setView("community");
+  }
+
+  function openPost(id) {
+    setSelectedPostId(id);
+    setView("post");
   }
 
   function refreshCurrentUser() {
@@ -79,6 +94,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!isAppView) return;
+
+    api
+      .getCommunities()
+      .then((data) => setCommunities(data.communities || []))
+      .catch((error) => setMessage(error.message));
+  }, [isAppView, refreshToken, user?._id]);
+
+  useEffect(() => {
     if (!message) return;
     const id = setTimeout(() => setMessage(""), 4000);
     return () => clearTimeout(id);
@@ -92,8 +116,8 @@ export default function App() {
         </p>
       )}
 
-      {!["welcome", "register", "login"].includes(view) && (
-        <div className="card compact-card">
+      {isAppView && (
+        <div className="top-bar">
           <Banner
             user={user}
             onHome={goHome}
@@ -117,69 +141,79 @@ export default function App() {
           setMessage={setMessage}
         />
       )}
-      {view === "home" && (
-        <Home
+      {isAppView && (
+        <AppShell
           user={user}
-          setView={setView}
-          setMessage={setMessage}
-          setSelectedCommunityId={setSelectedCommunityId}
-          setSelectedPostId={setSelectedPostId}
-          refreshToken={refreshToken}
-        />
-      )}
-      {view === "search" && (
-        <Search
-          user={user}
-          query={searchQuery}
-          setView={setView}
-          setMessage={setMessage}
-          setSelectedPostId={setSelectedPostId}
-          setSelectedCommunityId={setSelectedCommunityId}
-          refreshToken={refreshToken}
-        />
-      )}
-      {view === "create-community" && (
-        <CreateCommunity
-          setView={setView}
-          setMessage={setMessage}
-          onSuccess={refreshData}
-        />
-      )}
-      {view === "create-post" && (
-        <CreatePost
-          user={user}
-          setView={setView}
-          setMessage={setMessage}
-          onSuccess={refreshData}
-        />
-      )}
-      {view === "community" && (
-        <Community
-          user={user}
-          communityId={selectedCommunityId}
-          setSelectedPostId={setSelectedPostId}
-          setView={setView}
-          setMessage={setMessage}
-          onUserRefresh={refreshCurrentUser}
-          refreshToken={refreshToken}
-        />
-      )}
-      {view === "post" && (
-        <Post
-          user={user}
-          postId={selectedPostId}
-          setView={setView}
-          setMessage={setMessage}
-          onSuccess={refreshData}
-        />
-      )}
-      {view === "profile" && (
-        <Profile
-          user={user}
-          setMessage={setMessage}
-          refreshToken={refreshToken}
-          onUserRefresh={refreshCurrentUser}
-        />
+          communities={communities}
+          selectedCommunityId={selectedCommunityId}
+          onHome={goHome}
+          onOpenCommunity={openCommunity}
+          onCreateCommunity={() => setView("create-community")}
+          onCreatePost={() => setView("create-post")}
+        >
+          {view === "home" && (
+            <Home
+              user={user}
+              setMessage={setMessage}
+              onOpenCommunity={openCommunity}
+              onOpenPost={openPost}
+              refreshToken={refreshToken}
+            />
+          )}
+          {view === "search" && (
+            <Search
+              user={user}
+              query={searchQuery}
+              setMessage={setMessage}
+              onOpenPost={openPost}
+              onOpenCommunity={openCommunity}
+              refreshToken={refreshToken}
+            />
+          )}
+          {view === "create-community" && (
+            <CreateCommunity
+              setView={setView}
+              setMessage={setMessage}
+              onSuccess={refreshData}
+            />
+          )}
+          {view === "create-post" && (
+            <CreatePost
+              user={user}
+              setView={setView}
+              setMessage={setMessage}
+              onSuccess={refreshData}
+            />
+          )}
+          {view === "community" && (
+            <Community
+              user={user}
+              communityId={selectedCommunityId}
+              onOpenPost={openPost}
+              setView={setView}
+              setMessage={setMessage}
+              onUserRefresh={refreshCurrentUser}
+              refreshToken={refreshToken}
+            />
+          )}
+          {view === "post" && (
+            <Post
+              user={user}
+              postId={selectedPostId}
+              setView={setView}
+              setMessage={setMessage}
+              onSuccess={refreshData}
+            />
+          )}
+          {view === "profile" && (
+            <Profile
+              user={user}
+              setMessage={setMessage}
+              refreshToken={refreshToken}
+              onUserRefresh={refreshCurrentUser}
+            />
+          )}
+        </AppShell>
       )}
     </>
   );

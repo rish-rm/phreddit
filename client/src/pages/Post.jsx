@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client.js";
 import CommentItem from "../components/CommentItem.jsx";
 import { displayNameOfUser, flairContentOf, renderTextWithLinks } from "../utils/format.jsx";
+import { commentCountOf } from "../utils/posts.js";
 
 export default function Post({ user, postId, setView, setMessage, onSuccess }) {
   const [post, setPost] = useState(null);
@@ -64,6 +65,7 @@ export default function Post({ user, postId, setView, setMessage, onSuccess }) {
         <span>Posted by {displayNameOfUser(post.postedBy)}</span>
         {flairContentOf(post.linkFlair) && <span>Flair: {flairContentOf(post.linkFlair)}</span>}
         <span>Views: {post.views ?? 0}</span>
+        <span>Comments: {commentCountOf(post)}</span>
         <span>Upvotes: {post.upvotes ?? 0}</span>
         <span>Downvotes: {post.downvotes ?? 0}</span>
       </p>

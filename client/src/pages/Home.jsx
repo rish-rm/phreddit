@@ -1,69 +1,68 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
-import Sidebar from "../components/Sidebar.jsx";
 import SortButtons from "../components/SortButtons.jsx";
 import PostList from "../components/PostList.jsx";
 import { sortPostsClient } from "../utils/posts.js";
 
 export default function Home({
   user,
-  setView,
   setMessage,
-  setSelectedCommunityId,
-  setSelectedPostId,
+  onOpenCommunity,
+  onOpenPost,
   refreshToken
 }) {
-  const [communities, setCommunities] = useState([]);
   const [posts, setPosts] = useState([]);
+  const [flairs, setFlairs] = useState([]);
+  const [selectedFlair, setSelectedFlair] = useState("");
   const [currentSort, setCurrentSort] = useState("newest");
 
   useEffect(() => {
-    Promise.all([api.getCommunities(), api.getPosts()])
-      .then(([communityData, postData]) => {
-        setCommunities(communityData.communities || []);
+    Promise.all([
+      api.getPosts({ linkFlair: selectedFlair }),
+      api.getLinkFlairs().catch(() => ({ linkFlairs: [] }))
+    ])
+      .then(([postData, flairData]) => {
         setPosts(postData.posts || []);
+        setFlairs(flairData.linkFlairs || []);
       })
       .catch((error) => setMessage(error.message));
-  }, [setMessage, refreshToken]);
-
-  function openCommunity(id) {
-    setSelectedCommunityId(id);
-    setView("community");
-  }
-
-  function openPost(id) {
-    setSelectedPostId(id);
-    setView("post");
-  }
+  }, [setMessage, refreshToken, selectedFlair]);
 
   const sortedPosts = sortPostsClient(posts, currentSort);
 
   return (
     <main className="card" aria-label="Home Page">
-      <div className="layout-grid">
-        <Sidebar
+      <div className="page-header">
+        <div>
+          <h1>Home</h1>
+          <p className="page-subtitle">Browse the latest conversations across Phreddit.</p>
+        </div>
+        <SortButtons currentSort={currentSort} onSortChange={setCurrentSort} />
+      </div>
+      <div className="filter-row">
+        <label htmlFor="homeFlair">Flair</label>
+        <select
+          id="homeFlair"
+          value={selectedFlair}
+          onChange={(event) => setSelectedFlair(event.target.value)}
+        >
+          <option value="">All flairs</option>
+          {flairs.map((flair) => (
+            <option key={flair._id} value={flair._id}>{flair.content}</option>
+          ))}
+        </select>
+        {selectedFlair && (
+          <button type="button" onClick={() => setSelectedFlair("")}>Clear</button>
+        )}
+      </div>
+      <p className="post-count">{sortedPosts.length} posts</p>
+      <div className="list-column">
+        <PostList
+          posts={sortedPosts}
           user={user}
-          communities={communities}
-          onHome={() => setView("home")}
-          onOpenCommunity={openCommunity}
-          onCreateCommunity={() => setView("create-community")}
-          onCreatePost={() => setView("create-post")}
+          onOpenPost={onOpenPost}
+          onOpenCommunity={onOpenCommunity}
         />
-        <section>
-          <div className="page-header">
-            <h2>Home</h2>
-            <SortButtons currentSort={currentSort} onSortChange={setCurrentSort} />
-          </div>
-          <p className="post-count">{sortedPosts.length} posts</p>
-          <div className="list-column">
-            <PostList
-              posts={sortedPosts}
-              user={user}
-              onOpenPost={openPost}
-              onOpenCommunity={openCommunity}
-            />
-          </div>
-        </section>
       </div>
     </main>
   );

@@ -114,7 +114,7 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh 
     <main className="card" aria-label="Profile Page">
       {viewedUser && (
         <button onClick={() => { setViewedUser(null); setActiveTab("posts"); }}>
-          ← Back to your admin profile
+          Back to your admin profile
         </button>
       )}
       <h1>{viewedUser ? `${viewedUser.displayName}'s Profile` : "Profile"}</h1>
@@ -198,7 +198,7 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh 
             profile.comments.map((comment) => (
               <EditableItemRow
                 key={comment._id}
-                title={comment.content.length > 80 ? `${comment.content.slice(0, 80)}…` : comment.content}
+                title={comment.content.length > 80 ? `${comment.content.slice(0, 80)}...` : comment.content}
                 subtitle={comment.post?.title ? `on "${comment.post.title}"` : ""}
                 onEdit={() => setEditing({ kind: "comment", item: comment })}
                 onDelete={() => handleDelete("comment", comment)}
@@ -216,10 +216,10 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh 
               <div key={listedUser._id} className="row-card">
                 <div className="row-card-text">
                   <span className="row-card-title">{listedUser.displayName}</span>
-                  <span className="row-card-subtitle">{listedUser.email} · Rep: {listedUser.reputation}</span>
+                  <span className="row-card-subtitle">{listedUser.email} | Rep: {listedUser.reputation}</span>
                 </div>
                 <div className="row-card-actions">
-                  <button onClick={() => { setViewedUser(listedUser); setActiveTab("posts"); }}>View profile</button>
+                  <button onClick={() => { setViewedUser(listedUser); setActiveTab("posts"); }}>Act as user</button>
                   <button className="danger" onClick={() => deleteUser(listedUser)}>Delete</button>
                 </div>
               </div>

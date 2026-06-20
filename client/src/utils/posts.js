@@ -1,19 +1,75 @@
 export function latestActivityTime(post) {
-  const commentDates = (post.comments || [])
-    .map((comment) => new Date(comment.createdAt || comment).getTime())
-    .filter(Number.isFinite);
-  return Math.max(new Date(post.createdAt).getTime(), ...commentDates);
+  const latestCommentAt = new Date(post.latestCommentAt || 0).getTime();
+  if (Number.isFinite(latestCommentAt) && latestCommentAt > 0) {
+    return latestCommentAt;
+  }
+
+  return latestCommentTime(post.comments || []);
+}
+
+function createdTime(post) {
+  const time = new Date(post.createdAt || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function latestCommentTime(comments) {
+  let latest = 0;
+
+  for (const comment of comments) {
+    const createdAt = new Date(comment.createdAt || 0).getTime();
+    if (Number.isFinite(createdAt)) {
+      latest = Math.max(latest, createdAt);
+    }
+    if (Array.isArray(comment.replies)) {
+      latest = Math.max(latest, latestCommentTime(comment.replies));
+    }
+  }
+
+  return latest;
+}
+
+function countCommentTree(comments) {
+  return comments.reduce((total, comment) => {
+    const replies = Array.isArray(comment.replies) ? comment.replies : [];
+    return total + 1 + countCommentTree(replies);
+  }, 0);
+}
+
+export function commentCountOf(post) {
+  const numericCount = Number(post.commentCount);
+  if (Number.isFinite(numericCount)) {
+    return numericCount;
+  }
+
+  return Array.isArray(post.comments) ? countCommentTree(post.comments) : 0;
+}
+
+function hasCommentActivity(post) {
+  return commentCountOf(post) > 0;
 }
 
 export function sortPostsClient(posts, order) {
   const copy = [...posts];
   if (order === "oldest") {
-    return copy.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    return copy.sort((a, b) => createdTime(a) - createdTime(b));
   }
   if (order === "active") {
-    return copy.sort((a, b) => latestActivityTime(b) - latestActivityTime(a));
+    return copy.sort((a, b) => {
+      const aHasComments = hasCommentActivity(a);
+      const bHasComments = hasCommentActivity(b);
+
+      if (aHasComments !== bHasComments) {
+        return aHasComments ? -1 : 1;
+      }
+
+      if (aHasComments && bHasComments) {
+        return latestActivityTime(b) - latestActivityTime(a);
+      }
+
+      return createdTime(b) - createdTime(a);
+    });
   }
-  return copy.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return copy.sort((a, b) => createdTime(b) - createdTime(a));
 }
 
 export function getJoinedCommunityIdSet(user) {

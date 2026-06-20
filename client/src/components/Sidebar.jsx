@@ -1,6 +1,7 @@
 export default function Sidebar({
   user,
   communities,
+  selectedCommunityId,
   onHome,
   onOpenCommunity,
   onCreateCommunity,
@@ -24,7 +25,7 @@ export default function Sidebar({
           communities.map((community) => (
             <button
               key={community._id}
-              className="link-button"
+              className={String(selectedCommunityId) === String(community._id) ? "link-button active" : "link-button"}
               onClick={() => onOpenCommunity(community._id)}
             >
               {community.name}

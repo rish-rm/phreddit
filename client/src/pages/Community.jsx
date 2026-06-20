@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client.js";
+import SortButtons from "../components/SortButtons.jsx";
 import { displayNameOfUser, flairContentOf, formatDate, renderTextWithLinks } from "../utils/format.jsx";
+import { commentCountOf, sortPostsClient } from "../utils/posts.js";
 
 export default function Community({
   user,
   communityId,
-  setSelectedPostId,
+  onOpenPost,
   setView,
   setMessage,
   onUserRefresh,
   refreshToken
 }) {
   const [community, setCommunity] = useState(null);
+  const [currentSort, setCurrentSort] = useState("newest");
 
   useEffect(() => {
     if (!communityId) return;
@@ -51,10 +54,17 @@ export default function Community({
     );
   }
 
+  const sortedPosts = sortPostsClient(community.posts || [], currentSort);
+
   return (
     <main className="card" aria-label="Community Page">
-      <h1>{community.name}</h1>
-      <p>{renderTextWithLinks(community.description)}</p>
+      <div className="page-header">
+        <div>
+          <h1>{community.name}</h1>
+          <p className="page-subtitle">{renderTextWithLinks(community.description)}</p>
+        </div>
+        <SortButtons currentSort={currentSort} onSortChange={setCurrentSort} />
+      </div>
       <p className="meta-row">
         <span>Creator: {displayNameOfUser(community.creator)}</span>
         <span>Created: {formatDate(community.createdAt)}</span>
@@ -63,13 +73,12 @@ export default function Community({
         <button onClick={toggleMembership}>{isJoined ? "Leave Community" : "Join Community"}</button>
       )}
       <button onClick={() => setView("home")}>Back Home</button>
-      <h2>Posts</h2>
-      <p className="post-count">{(community.posts || []).length} posts</p>
+      <p className="post-count">{sortedPosts.length} posts</p>
       <div className="list-column">
-        {(community.posts || []).length === 0 ? (
+        {sortedPosts.length === 0 ? (
           <p>No posts in this community yet.</p>
         ) : (
-          community.posts.map((post) => (
+          sortedPosts.map((post) => (
             <article key={post._id} className="post-card">
               <p className="meta-row">
                 <span>By {displayNameOfUser(post.postedBy)}</span>
@@ -79,8 +88,7 @@ export default function Community({
                 <button
                   className="inline-link strong"
                   onClick={() => {
-                    setSelectedPostId(post._id);
-                    setView("post");
+                    onOpenPost(post._id);
                   }}
                 >
                   {post.title}
@@ -91,7 +99,7 @@ export default function Community({
               )}
               <p className="meta-row">
                 <span>Views: {post.views ?? 0}</span>
-                <span>Comments: {Array.isArray(post.comments) ? post.comments.length : 0}</span>
+                <span>Comments: {commentCountOf(post)}</span>
                 <span>Upvotes: {post.upvotes ?? 0}</span>
                 <span>Downvotes: {post.downvotes ?? 0}</span>
               </p>
