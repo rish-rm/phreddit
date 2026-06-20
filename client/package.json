@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src e2e",
-    "test:e2e": "npx playwright test createCommunity.test.js"
+    "test:e2e": "npx playwright test"
   },
   "dependencies": {
     "react": "^18.2.0",

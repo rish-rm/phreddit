@@ -1,0 +1,15 @@
+{
+  "name": "phreddit",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix server ci && npm --prefix client ci",
+    "build": "npm --prefix client run build",
+    "lint": "npm --prefix server run lint && npm --prefix client run lint",
+    "lint:server": "npm --prefix server run lint",
+    "lint:client": "npm --prefix client run lint",
+    "test:unit": "npm --prefix server run test:unit",
+    "test:int": "npm --prefix server run test:int",
+    "test:e2e": "npm --prefix client run test:e2e"
+  }
+}
