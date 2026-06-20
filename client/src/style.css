@@ -447,6 +447,22 @@ form label,
   background: var(--success-soft);
 }
 
+.inline-form {
+  margin: 10px 0 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.inline-form textarea {
+  min-height: 86px;
+}
+
+.moderation-card {
+  align-items: flex-start;
+}
+
 @media (max-width: 900px) {
   .banner {
     padding: 10px 12px;

@@ -44,6 +44,13 @@ export function commentCountOf(post) {
   return Array.isArray(post.comments) ? countCommentTree(post.comments) : 0;
 }
 
+export function isPostSavedByUser(user, postId) {
+  if (!user || !postId) return false;
+  return (user.savedPosts || []).some((savedPost) => (
+    String(savedPost?._id || savedPost) === String(postId)
+  ));
+}
+
 function hasCommentActivity(post) {
   return commentCountOf(post) > 0;
 }

@@ -10,6 +10,7 @@ export default function Search({
   setMessage,
   onOpenPost,
   onOpenCommunity,
+  onUserRefresh,
   refreshToken
 }) {
   const [posts, setPosts] = useState([]);
@@ -70,6 +71,8 @@ export default function Search({
           user={user}
           onOpenPost={onOpenPost}
           onOpenCommunity={onOpenCommunity}
+          setMessage={setMessage}
+          onUserRefresh={onUserRefresh}
         />
       </div>
     </main>

@@ -98,6 +98,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ voteType })
     }),
+  savePost: (id) =>
+    request(`/users/me/saved-posts/${id}`, {
+      method: "POST"
+    }),
+  unsavePost: (id) =>
+    request(`/users/me/saved-posts/${id}`, {
+      method: "DELETE"
+    }),
   createComment: (body) =>
     request("/comments", {
       method: "POST",
@@ -116,6 +124,22 @@ export const api = {
     request(`/comments/${id}/vote`, {
       method: "POST",
       body: JSON.stringify({ voteType })
+    }),
+  reportPost: (id, body) =>
+    request(`/reports/posts/${id}`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  listReports: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", params.status);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return request(`/reports${suffix}`);
+  },
+  resolveReport: (id, body) =>
+    request(`/reports/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify(body)
     }),
   getProfileContent: (id) => request(`/users/${id}/profile-content`),
   listUsers: () => request("/users"),

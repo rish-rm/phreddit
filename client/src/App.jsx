@@ -157,6 +157,7 @@ export default function App() {
               setMessage={setMessage}
               onOpenCommunity={openCommunity}
               onOpenPost={openPost}
+              onUserRefresh={refreshCurrentUser}
               refreshToken={refreshToken}
             />
           )}
@@ -167,6 +168,7 @@ export default function App() {
               setMessage={setMessage}
               onOpenPost={openPost}
               onOpenCommunity={openCommunity}
+              onUserRefresh={refreshCurrentUser}
               refreshToken={refreshToken}
             />
           )}
@@ -203,6 +205,7 @@ export default function App() {
               setView={setView}
               setMessage={setMessage}
               onSuccess={refreshData}
+              onUserRefresh={refreshCurrentUser}
             />
           )}
           {view === "profile" && (
@@ -211,6 +214,7 @@ export default function App() {
               setMessage={setMessage}
               refreshToken={refreshToken}
               onUserRefresh={refreshCurrentUser}
+              onOpenPost={openPost}
             />
           )}
         </AppShell>

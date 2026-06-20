@@ -1,7 +1,15 @@
 import { displayNameOfUser, flairContentOf, formatDate, renderTextWithLinks } from "../utils/format.jsx";
 import { commentCountOf } from "../utils/posts.js";
+import SavePostButton from "./SavePostButton.jsx";
 
-export default function PostCard({ post, onOpenPost, onOpenCommunity }) {
+export default function PostCard({
+  post,
+  user,
+  onOpenPost,
+  onOpenCommunity,
+  setMessage,
+  onUserRefresh
+}) {
   return (
     <article className="post-card">
       <p className="meta-row">
@@ -26,6 +34,14 @@ export default function PostCard({ post, onOpenPost, onOpenCommunity }) {
         <span>Upvotes: {post.upvotes ?? 0}</span>
         <span>Downvotes: {post.downvotes ?? 0}</span>
       </p>
+      <div className="action-row">
+        <SavePostButton
+          user={user}
+          postId={post._id}
+          setMessage={setMessage}
+          onUserRefresh={onUserRefresh}
+        />
+      </div>
     </article>
   );
 }

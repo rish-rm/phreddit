@@ -3,9 +3,10 @@ import { api } from "../api/client.js";
 import EditableItemRow from "../components/EditableItemRow.jsx";
 import { formatDate } from "../utils/format.jsx";
 
-export default function Profile({ user, setMessage, refreshToken, onUserRefresh }) {
+export default function Profile({ user, setMessage, refreshToken, onUserRefresh, onOpenPost }) {
   const [profile, setProfile] = useState(null);
   const [users, setUsers] = useState([]);
+  const [reports, setReports] = useState([]);
   const [activeTab, setActiveTab] = useState("posts");
   const [viewedUser, setViewedUser] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -28,6 +29,14 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh 
       .then((data) => setUsers(data.users || []))
       .catch((error) => setMessage(error.message));
   }, [user, setMessage, refreshToken, localRefresh]);
+
+  useEffect(() => {
+    if (!user?.isAdmin || viewedUser) return;
+    api
+      .listReports()
+      .then((data) => setReports(data.reports || []))
+      .catch((error) => setMessage(error.message));
+  }, [user, viewedUser, setMessage, refreshToken, localRefresh]);
 
   function refresh() {
     setLocalRefresh((n) => n + 1);
@@ -94,6 +103,36 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh 
     }
   }
 
+  async function removeSavedPost(post) {
+    try {
+      await api.unsavePost(post._id);
+      setMessage("Post removed from saved posts.");
+      refresh();
+      onUserRefresh();
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function resolveReport(report, action) {
+    if (
+      action === "delete_post" &&
+      !window.confirm(`Delete reported post "${report.targetPost?.title || "removed post"}"?`)
+    ) {
+      return;
+    }
+
+    try {
+      const data = await api.resolveReport(report._id, { action });
+      setReports(data.reports || []);
+      setMessage(data.message);
+      refresh();
+      onUserRefresh();
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
   if (!user) {
     return (
       <main className="card">
@@ -105,8 +144,10 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh 
 
   const tabs = [
     { id: "posts", label: "Posts" },
+    { id: "saved", label: "Saved" },
     { id: "communities", label: "Communities" },
     { id: "comments", label: "Comments" },
+    ...(user.isAdmin && !viewedUser ? [{ id: "moderation", label: "Moderation" }] : []),
     ...(user.isAdmin && !viewedUser ? [{ id: "users", label: "Users" }] : [])
   ];
 
@@ -192,6 +233,28 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh 
         </div>
       )}
 
+      {activeTab === "saved" && (
+        <div className="list-column">
+          {(profile?.savedPosts || []).length === 0 ? <p>No saved posts yet.</p> :
+            profile.savedPosts.map((post) => (
+              <div key={post._id} className="row-card">
+                <div className="row-card-text">
+                  <span className="row-card-title">{post.title}</span>
+                  <span className="row-card-subtitle">
+                    {post.community?.name ? `in ${post.community.name}` : "Saved post"} | Comments: {post.commentCount ?? 0}
+                  </span>
+                </div>
+                <div className="row-card-actions">
+                  <button onClick={() => onOpenPost(post._id)}>Open</button>
+                  {String(profileUser._id) === String(user._id) && (
+                    <button onClick={() => removeSavedPost(post)}>Remove</button>
+                  )}
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+
       {activeTab === "comments" && (
         <div className="list-column">
           {(profile?.comments || []).length === 0 ? <p>No comments yet.</p> :
@@ -221,6 +284,34 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh 
                 <div className="row-card-actions">
                   <button onClick={() => { setViewedUser(listedUser); setActiveTab("posts"); }}>Act as user</button>
                   <button className="danger" onClick={() => deleteUser(listedUser)}>Delete</button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {activeTab === "moderation" && user.isAdmin && !viewedUser && (
+        <div className="list-column">
+          {reports.length === 0 ? (
+            <p>No pending reports.</p>
+          ) : (
+            reports.map((report) => (
+              <div key={report._id} className="row-card moderation-card">
+                <div className="row-card-text">
+                  <span className="row-card-title">{report.targetPost?.title || "Removed post"}</span>
+                  <span className="row-card-subtitle">
+                    {report.reason} report from {report.reportedBy?.displayName || "Unknown user"}
+                    {report.targetPost?.community?.name ? ` in ${report.targetPost.community.name}` : ""}
+                  </span>
+                  {report.details && <span className="row-card-subtitle">{report.details}</span>}
+                </div>
+                <div className="row-card-actions">
+                  {report.targetPost && (
+                    <button onClick={() => onOpenPost(report.targetPost._id)}>Open</button>
+                  )}
+                  <button onClick={() => resolveReport(report, "dismiss")}>Dismiss</button>
+                  <button className="danger" onClick={() => resolveReport(report, "delete_post")}>Delete post</button>
                 </div>
               </div>
             ))

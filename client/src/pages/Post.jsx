@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client.js";
 import CommentItem from "../components/CommentItem.jsx";
+import SavePostButton from "../components/SavePostButton.jsx";
 import { displayNameOfUser, flairContentOf, renderTextWithLinks } from "../utils/format.jsx";
 import { commentCountOf } from "../utils/posts.js";
 
-export default function Post({ user, postId, setView, setMessage, onSuccess }) {
+export default function Post({ user, postId, setView, setMessage, onSuccess, onUserRefresh }) {
   const [post, setPost] = useState(null);
   const [commentText, setCommentText] = useState("");
+  const [showReportForm, setShowReportForm] = useState(false);
+  const [reportForm, setReportForm] = useState({
+    reason: "spam",
+    details: ""
+  });
 
   const loadPost = useCallback(async ({ incrementView = false } = {}) => {
     if (!postId) return;
@@ -47,6 +53,18 @@ export default function Post({ user, postId, setView, setMessage, onSuccess }) {
     }
   }
 
+  async function submitReport(event) {
+    event.preventDefault();
+    try {
+      const data = await api.reportPost(postId, reportForm);
+      setMessage(data.message);
+      setShowReportForm(false);
+      setReportForm({ reason: "spam", details: "" });
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
   if (!post) {
     return (
       <main className="card">
@@ -55,6 +73,8 @@ export default function Post({ user, postId, setView, setMessage, onSuccess }) {
       </main>
     );
   }
+
+  const canReportPost = user && String(post.postedBy?._id || post.postedBy) !== String(user._id);
 
   return (
     <main className="card" aria-label="Post Page">
@@ -73,9 +93,47 @@ export default function Post({ user, postId, setView, setMessage, onSuccess }) {
         <div className="action-row">
           <button onClick={() => votePost("upvote")}>Upvote</button>
           <button onClick={() => votePost("downvote")}>Downvote</button>
+          <SavePostButton
+            user={user}
+            postId={post._id}
+            setMessage={setMessage}
+            onUserRefresh={onUserRefresh}
+          />
+          {canReportPost && (
+            <button type="button" onClick={() => setShowReportForm((value) => !value)}>
+              {showReportForm ? "Cancel report" : "Report post"}
+            </button>
+          )}
         </div>
       ) : (
         <p className="muted">Login to vote or comment.</p>
+      )}
+      {showReportForm && (
+        <form className="inline-form" onSubmit={submitReport}>
+          <label htmlFor="reportReason">Reason</label>
+          <select
+            id="reportReason"
+            value={reportForm.reason}
+            onChange={(event) => setReportForm({ ...reportForm, reason: event.target.value })}
+          >
+            <option value="spam">Spam</option>
+            <option value="harassment">Harassment</option>
+            <option value="off-topic">Off topic</option>
+            <option value="other">Other</option>
+          </select>
+          <label htmlFor="reportDetails">Details</label>
+          <textarea
+            id="reportDetails"
+            maxLength={400}
+            placeholder="Optional context for moderators"
+            value={reportForm.details}
+            onChange={(event) => setReportForm({ ...reportForm, details: event.target.value })}
+          />
+          <div className="action-row">
+            <button type="submit">Submit report</button>
+            <button type="button" onClick={() => setShowReportForm(false)}>Cancel</button>
+          </div>
+        </form>
       )}
       <button onClick={() => setView("home")}>Back Home</button>
       <h2>Comments</h2>

@@ -69,6 +69,8 @@ test("core community, post, flair, active sort, vote, comment, and profile flows
   await page.getByRole("button", { name: activeTitle }).click();
   await page.getByRole("button", { name: /upvote/i }).click();
   await expect(page.getByText("Upvotes: 1")).toBeVisible();
+  await page.getByRole("button", { name: /^save$/i }).click();
+  await expect(page.getByRole("button", { name: /^saved$/i })).toBeVisible();
   await page.getByPlaceholder("Write a comment").fill(commentText);
   await page.getByRole("button", { name: /add comment/i }).click();
   await expect(page.getByText(commentText)).toBeVisible();
@@ -88,6 +90,9 @@ test("core community, post, flair, active sort, vote, comment, and profile flows
   await postRow.getByRole("button", { name: /edit/i }).click();
   await page.locator('input[name="title"]').fill(editedTitle);
   await page.getByRole("button", { name: /save/i }).click();
+  await expect(page.locator(".row-card").filter({ hasText: editedTitle })).toBeVisible();
+
+  await page.getByRole("tab", { name: /saved/i }).click();
   await expect(page.locator(".row-card").filter({ hasText: editedTitle })).toBeVisible();
 
   await page.getByRole("tab", { name: /comments/i }).click();

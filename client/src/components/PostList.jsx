@@ -1,7 +1,14 @@
 import PostCard from "./PostCard.jsx";
 import { splitPostsByMembership } from "../utils/posts.js";
 
-export default function PostList({ posts, user, onOpenPost, onOpenCommunity }) {
+export default function PostList({
+  posts,
+  user,
+  onOpenPost,
+  onOpenCommunity,
+  setMessage,
+  onUserRefresh
+}) {
   if (posts.length === 0) {
     return <p>No posts yet.</p>;
   }
@@ -14,8 +21,11 @@ export default function PostList({ posts, user, onOpenPost, onOpenCommunity }) {
           <PostCard
             key={post._id}
             post={post}
+            user={user}
             onOpenPost={onOpenPost}
             onOpenCommunity={onOpenCommunity}
+            setMessage={setMessage}
+            onUserRefresh={onUserRefresh}
           />
         ))}
       </>
@@ -32,8 +42,11 @@ export default function PostList({ posts, user, onOpenPost, onOpenCommunity }) {
           <PostCard
             key={post._id}
             post={post}
+            user={user}
             onOpenPost={onOpenPost}
             onOpenCommunity={onOpenCommunity}
+            setMessage={setMessage}
+            onUserRefresh={onUserRefresh}
           />
         ))
       )}
@@ -46,8 +59,11 @@ export default function PostList({ posts, user, onOpenPost, onOpenCommunity }) {
           <PostCard
             key={post._id}
             post={post}
+            user={user}
             onOpenPost={onOpenPost}
             onOpenCommunity={onOpenCommunity}
+            setMessage={setMessage}
+            onUserRefresh={onUserRefresh}
           />
         ))
       )}
