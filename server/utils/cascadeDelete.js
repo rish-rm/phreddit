@@ -102,8 +102,28 @@ export async function deleteUserCascade(userId) {
   );
 
   await Post.updateMany(
+    { votedBy: { $elemMatch: { user: user._id, voteType: "upvote" } } },
+    { $inc: { upvotes: -1 } }
+  );
+
+  await Post.updateMany(
+    { votedBy: { $elemMatch: { user: user._id, voteType: "downvote" } } },
+    { $inc: { downvotes: -1 } }
+  );
+
+  await Post.updateMany(
     { "votedBy.user": user._id },
     { $pull: { votedBy: { user: user._id } } }
+  );
+
+  await Comment.updateMany(
+    { votedBy: { $elemMatch: { user: user._id, voteType: "upvote" } } },
+    { $inc: { upvotes: -1 } }
+  );
+
+  await Comment.updateMany(
+    { votedBy: { $elemMatch: { user: user._id, voteType: "downvote" } } },
+    { $inc: { downvotes: -1 } }
   );
 
   await Comment.updateMany(

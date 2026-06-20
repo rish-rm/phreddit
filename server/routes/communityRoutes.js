@@ -3,6 +3,7 @@ import Community from "../models/Community.js";
 import User from "../models/User.js";
 import { requireLogin } from "../middleware/auth.js";
 import { deleteCommunityCascade } from "../utils/cascadeDelete.js";
+import { attachPostStats } from "../utils/postStats.js";
 import { requireNonEmptyString } from "../utils/validation.js";
 
 const router = express.Router();
@@ -56,7 +57,10 @@ router.get("/:id", async (req, res, next) => {
       });
     }
 
-    return res.json({ community });
+    const communityData = community.toObject({ virtuals: true });
+    communityData.posts = await attachPostStats(community.posts || []);
+
+    return res.json({ community: communityData });
   } catch (error) {
     next(error);
   }

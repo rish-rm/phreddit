@@ -10,6 +10,7 @@ import {
   hasUserAlreadyVoted,
   reputationDeltaForVote
 } from "../utils/voting.js";
+import { attachPostStats } from "../utils/postStats.js";
 import { requireNonEmptyString } from "../utils/validation.js";
 
 const router = express.Router();
@@ -62,6 +63,10 @@ router.get("/", async (req, res, next) => {
       filter.community = req.query.community;
     }
 
+    if (req.query.linkFlair) {
+      filter.linkFlair = req.query.linkFlair;
+    }
+
     if (req.query.search) {
       const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const terms = String(req.query.search)
@@ -97,7 +102,7 @@ router.get("/", async (req, res, next) => {
       .populate("comments", "createdAt")
       .sort({ createdAt: -1 });
 
-    return res.json({ posts });
+    return res.json({ posts: await attachPostStats(posts) });
   } catch (error) {
     next(error);
   }
@@ -117,7 +122,8 @@ router.get("/:id", async (req, res, next) => {
       await post.save();
     }
 
-    return res.json({ post });
+    const [postWithStats] = await attachPostStats([post]);
+    return res.json({ post: postWithStats });
   } catch (error) {
     next(error);
   }

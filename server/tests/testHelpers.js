@@ -6,9 +6,23 @@ import LinkFlair from "../models/LinkFlair.js";
 import Post from "../models/Post.js";
 import User from "../models/User.js";
 
-const uniqueTestDbName = `phreddit_test_${process.pid}`;
-export const TEST_MONGO_URI =
-  process.env.TEST_MONGO_URI || `mongodb://127.0.0.1:27017/${uniqueTestDbName}`;
+function uniqueMongoUri(baseUri) {
+  const fallbackDbName = "phreddit_test";
+  const suffix = `${process.pid}_${Math.random().toString(36).slice(2, 8)}`;
+
+  try {
+    const url = new URL(baseUri);
+    const dbName = url.pathname.replace(/^\//, "") || fallbackDbName;
+    url.pathname = `/${dbName}_${suffix}`;
+    return url.toString();
+  } catch {
+    return `mongodb://127.0.0.1:27017/${fallbackDbName}_${suffix}`;
+  }
+}
+
+export const TEST_MONGO_URI = uniqueMongoUri(
+  process.env.TEST_MONGO_URI || "mongodb://127.0.0.1:27017/phreddit_test"
+);
 
 export async function connectTestDb() {
   if (mongoose.connection.readyState === 0) {
