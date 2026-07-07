@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.0"
+
+      - name: Install dependencies
+        run: npm run install:all
+
+      - name: Lint server
+        run: npm run lint:server
+
+      - name: Lint client
+        run: npm run lint:client
+
+      - name: Build client
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run integration tests
+        run: npm run test:int
+        env:
+          TEST_MONGO_URI: mongodb://127.0.0.1:27017/phreddit_int_ci
+
+      - name: Install Playwright browser
+        run: npm --prefix client exec playwright install --with-deps chromium
+
+      - name: Run Playwright e2e tests
+        run: npm run test:e2e
+        env:
+          E2E_MONGO_URI: mongodb://127.0.0.1:27017/phreddit_e2e_ci

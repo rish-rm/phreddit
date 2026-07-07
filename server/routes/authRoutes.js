@@ -70,11 +70,18 @@ router.post("/login", authRateLimiter, async (req, res, next) => {
       });
     }
 
-    req.session.userId = String(user._id);
+    return req.session.regenerate((sessionError) => {
+      if (sessionError) {
+        next(sessionError);
+        return;
+      }
 
-    return res.json({
-      message: "Logged in successfully.",
-      user
+      req.session.userId = String(user._id);
+
+      res.json({
+        message: "Logged in successfully.",
+        user
+      });
     });
   } catch (error) {
     next(error);

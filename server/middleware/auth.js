@@ -1,8 +1,13 @@
 import User from "../models/User.js";
 
+export function allowsTestAuthHeader(env = process.env) {
+  return env.NODE_ENV === "test" || env.ENABLE_TEST_AUTH_HEADER === "true";
+}
+
 export async function attachCurrentUser(req, _res, next) {
   try {
-    const userId = req.session?.userId || req.header("x-test-user-id");
+    const testUserId = allowsTestAuthHeader() ? req.header("x-test-user-id") : null;
+    const userId = req.session?.userId || testUserId;
     req.currentUser = userId ? await User.findById(userId) : null;
     next();
   } catch (error) {
