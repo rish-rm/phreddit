@@ -4,6 +4,7 @@ import CommentItem from "../components/CommentItem.jsx";
 import SavePostButton from "../components/SavePostButton.jsx";
 import { displayNameOfUser, flairContentOf, renderTextWithLinks } from "../utils/format.jsx";
 import { commentCountOf } from "../utils/posts.js";
+import { voteButtonLabel, votingDisabledReason } from "../utils/voting.js";
 
 export default function Post({ user, postId, setView, setMessage, onSuccess, onUserRefresh }) {
   const [post, setPost] = useState(null);
@@ -30,7 +31,8 @@ export default function Post({ user, postId, setView, setMessage, onSuccess, onU
 
   async function votePost(voteType) {
     try {
-      await api.votePost(postId, voteType);
+      const data = await api.votePost(postId, voteType);
+      setMessage(data.message);
       onSuccess();
       await loadPost();
     } catch (error) {
@@ -75,6 +77,7 @@ export default function Post({ user, postId, setView, setMessage, onSuccess, onU
   }
 
   const canReportPost = user && String(post.postedBy?._id || post.postedBy) !== String(user._id);
+  const postVoteDisabledReason = votingDisabledReason(user, post.postedBy, "post");
 
   return (
     <main className="card" aria-label="Post Page">
@@ -91,8 +94,22 @@ export default function Post({ user, postId, setView, setMessage, onSuccess, onU
       </p>
       {user ? (
         <div className="action-row">
-          <button onClick={() => votePost("upvote")}>Upvote</button>
-          <button onClick={() => votePost("downvote")}>Downvote</button>
+          <button
+            className={post.userVote === "upvote" ? "active" : ""}
+            disabled={Boolean(postVoteDisabledReason)}
+            title={postVoteDisabledReason || "Click again to remove your vote."}
+            onClick={() => votePost("upvote")}
+          >
+            {voteButtonLabel("upvote", post.userVote, post.upvotes)}
+          </button>
+          <button
+            className={post.userVote === "downvote" ? "active" : ""}
+            disabled={Boolean(postVoteDisabledReason)}
+            title={postVoteDisabledReason || "Click again to remove your vote."}
+            onClick={() => votePost("downvote")}
+          >
+            {voteButtonLabel("downvote", post.userVote, post.downvotes)}
+          </button>
           <SavePostButton
             user={user}
             postId={post._id}

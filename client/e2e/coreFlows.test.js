@@ -67,8 +67,7 @@ test("core community, post, flair, active sort, vote, comment, and profile flows
   });
 
   await page.getByRole("button", { name: activeTitle }).click();
-  await page.getByRole("button", { name: /upvote/i }).click();
-  await expect(page.getByText("Upvotes: 1")).toBeVisible();
+  await expect(page.getByRole("button", { name: /upvote/i })).toBeDisabled();
   await page.getByRole("button", { name: /^save$/i }).click();
   await expect(page.getByRole("button", { name: /^saved$/i })).toBeVisible();
   await page.getByPlaceholder("Write a comment").fill(commentText);
