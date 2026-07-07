@@ -158,7 +158,9 @@ test("comment votes block self-votes and expose current vote on post detail", as
 
   assert.equal(postDetailResponse.status, 200);
   assert.equal(postDetailResponse.body.post.userVote, null);
+  assert.equal(Object.hasOwn(postDetailResponse.body.post, "votedBy"), false);
   assert.equal(postDetailResponse.body.post.comments[0].userVote, "upvote");
+  assert.equal(Object.hasOwn(postDetailResponse.body.post.comments[0], "votedBy"), false);
 
   const updatedCommenter = await User.findById(commenter._id);
   assert.equal(updatedCommenter.reputation, 105);

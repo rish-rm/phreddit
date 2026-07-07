@@ -19,7 +19,7 @@ The project is structured as a portfolio-ready MERN application with a polished 
 - Community creation, membership, listings, and joined-community prioritization
 - Post creation, editing, deletion, flair display, flair filtering, and search
 - Newest, Oldest, and Active sorting, with Active based on latest comment activity
-- Threaded comments and replies with recursive display
+- Threaded comments and replies with unbounded server-side tree building
 - Post/comment voting with reputation restrictions, self-vote protection, and vote toggle/switch behavior
 - Saved posts/bookmarks with a dedicated profile tab
 - Post reporting with duplicate-report protection and an admin moderation queue
@@ -200,6 +200,8 @@ E2E_MONGO_URI=mongodb://127.0.0.1:27028/phreddit_e2e npm run test:e2e
 - `server/server.js` exports `createApp()` for testability and `startServer()` for normal runtime startup.
 - Test auth can inject `x-test-user-id` only when `NODE_ENV=test` or `ENABLE_TEST_AUTH_HEADER=true`; production auth uses session cookies.
 - Post listings use `server/utils/postStats.js` to attach recursive `commentCount` and `latestCommentAt` without relying on partially populated comments.
+- Post detail loads comments with one flat query and rebuilds the reply tree in `server/utils/commentTree.js`, so deeply nested threads do not disappear at an arbitrary populate depth.
+- Vote responses expose `userVote` for the current session while keeping raw `votedBy` voter lists out of API payloads.
 - Frontend Active sort keeps posts with comment activity above empty posts and sorts by latest comment/reply timestamp.
 - Saved posts are modeled as user-to-post references and returned through profile content instead of duplicating post snapshots.
 - Reports are first-class documents with a pending/resolved lifecycle, reporter identity, admin resolution metadata, and duplicate-pending-report protection.

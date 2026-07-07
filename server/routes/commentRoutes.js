@@ -7,6 +7,7 @@ import { deleteCommentAndReplies } from "../utils/cascadeDelete.js";
 import {
   applyVoteChangeToDocument,
   canUserVote,
+  presentVotable,
   resolveVoteChange
 } from "../utils/voting.js";
 import { requireNonEmptyString } from "../utils/validation.js";
@@ -80,7 +81,7 @@ router.post("/", requireLogin, async (req, res, next) => {
 
     return res.status(201).json({
       message: "Comment created successfully.",
-      comment
+      comment: presentVotable(comment, req.currentUser._id)
     });
   } catch (error) {
     next(error);
@@ -107,7 +108,7 @@ router.put("/:id", requireLogin, async (req, res, next) => {
 
     return res.json({
       message: "Comment updated successfully.",
-      comment
+      comment: presentVotable(comment, req.currentUser._id)
     });
   } catch (error) {
     next(error);
@@ -184,7 +185,7 @@ router.post("/:id/vote", requireLogin, async (req, res, next) => {
 
     return res.json({
       message: messageForVoteAction(voteChange.action),
-      comment,
+      comment: presentVotable(comment, req.currentUser._id),
       currentVote: voteChange.currentVote,
       commenterReputation: updatedCommenter.reputation
     });

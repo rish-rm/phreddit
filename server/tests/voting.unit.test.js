@@ -4,6 +4,7 @@ import {
   applyVoteChangeToDocument,
   canUserVote,
   hasUserAlreadyVoted,
+  presentVotable,
   reputationDeltaForVote,
   resolveVoteChange,
   voteTypeForUser
@@ -23,6 +24,23 @@ test("hasUserAlreadyVoted detects votes by string-equivalent ids", () => {
 test("voteTypeForUser returns the current user's vote type", () => {
   assert.equal(voteTypeForUser([{ user: "abc", voteType: "downvote" }], "abc"), "downvote");
   assert.equal(voteTypeForUser([{ user: "abc", voteType: "downvote" }], "xyz"), null);
+});
+
+test("presentVotable hides voter lists and exposes only the current user's vote", () => {
+  const presented = presentVotable(
+    {
+      _id: "post1",
+      title: "Vote privacy",
+      votedBy: [
+        { user: "abc", voteType: "upvote" },
+        { user: "xyz", voteType: "downvote" }
+      ]
+    },
+    "abc"
+  );
+
+  assert.equal(presented.userVote, "upvote");
+  assert.equal(Object.hasOwn(presented, "votedBy"), false);
 });
 
 test("reputationDeltaForVote returns correct reputation changes", () => {

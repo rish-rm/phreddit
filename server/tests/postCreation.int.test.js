@@ -299,3 +299,59 @@ test("Get a Post populates nested comment replies", async (t) => {
     user.displayName
   );
 });
+
+test("Get a Post returns deeply nested replies without a populate depth limit", async (t) => {
+  await connectTestDb();
+  await clearTestDb();
+
+  t.after(async () => {
+    await clearTestDb();
+    await disconnectTestDb();
+  });
+
+  const user = await createTestUser();
+  const community = await createTestCommunity(user);
+
+  const post = await Post.create({
+    title: "Deep Reply Post",
+    content: "Every reply depth should remain visible.",
+    postedBy: user._id,
+    community: community._id,
+    comments: []
+  });
+
+  let parentComment = null;
+  for (let depth = 0; depth < 8; depth += 1) {
+    const comment = await Comment.create({
+      content: `Depth ${depth}`,
+      commentedBy: user._id,
+      post: post._id,
+      parentComment: parentComment?._id || null,
+      replies: []
+    });
+
+    if (parentComment) {
+      parentComment.replies.push(comment._id);
+      await parentComment.save();
+    } else {
+      post.comments.push(comment._id);
+      await post.save();
+    }
+
+    parentComment = comment;
+  }
+
+  const app = createApp({ useSessionStore: false });
+  const response = await supertest(app).get(
+    `/api/posts/${post._id}?incrementView=false`
+  );
+
+  assert.equal(response.status, 200);
+
+  let comment = response.body.post.comments[0];
+  for (let depth = 0; depth < 8; depth += 1) {
+    assert.equal(comment.content, `Depth ${depth}`);
+    assert.equal(Object.hasOwn(comment, "votedBy"), false);
+    comment = comment.replies[0];
+  }
+});
