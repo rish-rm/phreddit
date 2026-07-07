@@ -20,7 +20,7 @@ The project is structured as a portfolio-ready MERN application with a polished 
 - Post creation, editing, deletion, flair display, flair filtering, and search
 - Newest, Oldest, and Active sorting, with Active based on latest comment activity
 - Threaded comments and replies with recursive display
-- Post/comment voting with one-vote-per-user and reputation restrictions
+- Post/comment voting with reputation restrictions, self-vote protection, and vote toggle/switch behavior
 - Saved posts/bookmarks with a dedicated profile tab
 - Post reporting with duplicate-report protection and an admin moderation queue
 - Admin report resolution through dismissal or content removal

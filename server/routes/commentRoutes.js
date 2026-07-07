@@ -5,13 +5,19 @@ import User from "../models/User.js";
 import { requireLogin } from "../middleware/auth.js";
 import { deleteCommentAndReplies } from "../utils/cascadeDelete.js";
 import {
+  applyVoteChangeToDocument,
   canUserVote,
-  hasUserAlreadyVoted,
-  reputationDeltaForVote
+  resolveVoteChange
 } from "../utils/voting.js";
 import { requireNonEmptyString } from "../utils/validation.js";
 
 const router = express.Router();
+
+function messageForVoteAction(action) {
+  if (action === "removed") return "Vote removed successfully.";
+  if (action === "switched") return "Vote switched successfully.";
+  return "Vote recorded successfully.";
+}
 
 router.post("/", requireLogin, async (req, res, next) => {
   try {
@@ -156,38 +162,30 @@ router.post("/:id/vote", requireLogin, async (req, res, next) => {
       });
     }
 
-    if (hasUserAlreadyVoted(comment.votedBy, req.currentUser._id)) {
-      return res.status(409).json({
-        error: "You can only vote on a comment once."
+    if (String(comment.commentedBy) === String(req.currentUser._id)) {
+      return res.status(403).json({
+        error: "You cannot vote on your own comment."
       });
     }
 
-    if (voteType === "upvote") {
-      comment.upvotes += 1;
-    } else {
-      comment.downvotes += 1;
-    }
-
-    comment.votedBy.push({
-      user: req.currentUser._id,
-      voteType
-    });
-
+    const voteChange = resolveVoteChange(comment.votedBy, req.currentUser._id, voteType);
+    applyVoteChangeToDocument(comment, req.currentUser._id, voteChange);
     await comment.save();
 
     const updatedCommenter = await User.findByIdAndUpdate(
       comment.commentedBy,
       {
         $inc: {
-          reputation: reputationDeltaForVote(voteType)
+          reputation: voteChange.reputationDelta
         }
       },
       { new: true }
     );
 
     return res.json({
-      message: "Vote recorded successfully.",
+      message: messageForVoteAction(voteChange.action),
       comment,
+      currentVote: voteChange.currentVote,
       commenterReputation: updatedCommenter.reputation
     });
   } catch (error) {

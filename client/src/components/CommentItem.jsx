@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api/client.js";
 import { displayNameOfUser, formatDate, renderTextWithLinks } from "../utils/format.jsx";
+import { voteButtonLabel, votingDisabledReason } from "../utils/voting.js";
 
 export default function CommentItem({ comment, user, postId, depth = 0, setMessage, onReload }) {
   const [showReply, setShowReply] = useState(false);
@@ -8,7 +9,8 @@ export default function CommentItem({ comment, user, postId, depth = 0, setMessa
 
   async function vote(voteType) {
     try {
-      await api.voteComment(comment._id, voteType);
+      const data = await api.voteComment(comment._id, voteType);
+      setMessage(data.message);
       await onReload();
     } catch (error) {
       setMessage(error.message);
@@ -36,6 +38,7 @@ export default function CommentItem({ comment, user, postId, depth = 0, setMessa
   const sortedReplies = [...replies].sort(
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
   );
+  const voteDisabledReason = votingDisabledReason(user, comment.commentedBy, "comment");
 
   return (
     <div className="comment-card" style={{ marginLeft: depth * 24 }}>
@@ -48,8 +51,22 @@ export default function CommentItem({ comment, user, postId, depth = 0, setMessa
       <div>{renderTextWithLinks(comment.content)}</div>
       {user && (
         <div className="action-row">
-          <button onClick={() => vote("upvote")}>Upvote</button>
-          <button onClick={() => vote("downvote")}>Downvote</button>
+          <button
+            className={comment.userVote === "upvote" ? "active" : ""}
+            disabled={Boolean(voteDisabledReason)}
+            title={voteDisabledReason || "Click again to remove your vote."}
+            onClick={() => vote("upvote")}
+          >
+            {voteButtonLabel("upvote", comment.userVote, comment.upvotes)}
+          </button>
+          <button
+            className={comment.userVote === "downvote" ? "active" : ""}
+            disabled={Boolean(voteDisabledReason)}
+            title={voteDisabledReason || "Click again to remove your vote."}
+            onClick={() => vote("downvote")}
+          >
+            {voteButtonLabel("downvote", comment.userVote, comment.downvotes)}
+          </button>
           <button onClick={() => setShowReply((v) => !v)}>
             {showReply ? "Cancel" : "Reply"}
           </button>

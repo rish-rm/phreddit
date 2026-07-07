@@ -6,9 +6,10 @@ import User from "../models/User.js";
 import { requireLogin } from "../middleware/auth.js";
 import { deletePostAndComments } from "../utils/cascadeDelete.js";
 import {
+  applyVoteChangeToDocument,
   canUserVote,
-  hasUserAlreadyVoted,
-  reputationDeltaForVote
+  resolveVoteChange,
+  voteTypeForUser
 } from "../utils/voting.js";
 import { attachPostStats } from "../utils/postStats.js";
 import { requireNonEmptyString } from "../utils/validation.js";
@@ -53,6 +54,22 @@ function populatePost(query) {
         commentPopulate()
       ]
     });
+}
+
+function addUserVoteToComments(comments = [], currentUserId = null) {
+  if (!Array.isArray(comments)) return [];
+
+  return comments.map((comment) => ({
+    ...comment,
+    userVote: voteTypeForUser(comment.votedBy, currentUserId),
+    replies: addUserVoteToComments(comment.replies, currentUserId)
+  }));
+}
+
+function messageForVoteAction(action) {
+  if (action === "removed") return "Vote removed successfully.";
+  if (action === "switched") return "Vote switched successfully.";
+  return "Vote recorded successfully.";
 }
 
 router.get("/", async (req, res, next) => {
@@ -102,7 +119,9 @@ router.get("/", async (req, res, next) => {
       .populate("comments", "createdAt")
       .sort({ createdAt: -1 });
 
-    return res.json({ posts: await attachPostStats(posts) });
+    return res.json({
+      posts: await attachPostStats(posts, { currentUserId: req.currentUser?._id })
+    });
   } catch (error) {
     next(error);
   }
@@ -122,7 +141,14 @@ router.get("/:id", async (req, res, next) => {
       await post.save();
     }
 
-    const [postWithStats] = await attachPostStats([post]);
+    const [postWithStats] = await attachPostStats([post], {
+      currentUserId: req.currentUser?._id
+    });
+    postWithStats.comments = addUserVoteToComments(
+      postWithStats.comments,
+      req.currentUser?._id
+    );
+
     return res.json({ post: postWithStats });
   } catch (error) {
     next(error);
@@ -272,38 +298,30 @@ router.post("/:id/vote", requireLogin, async (req, res, next) => {
       });
     }
 
-    if (hasUserAlreadyVoted(post.votedBy, req.currentUser._id)) {
-      return res.status(409).json({
-        error: "You can only vote on a post once."
+    if (String(post.postedBy) === String(req.currentUser._id)) {
+      return res.status(403).json({
+        error: "You cannot vote on your own post."
       });
     }
 
-    if (voteType === "upvote") {
-      post.upvotes += 1;
-    } else {
-      post.downvotes += 1;
-    }
-
-    post.votedBy.push({
-      user: req.currentUser._id,
-      voteType
-    });
-
+    const voteChange = resolveVoteChange(post.votedBy, req.currentUser._id, voteType);
+    applyVoteChangeToDocument(post, req.currentUser._id, voteChange);
     await post.save();
 
     const updatedPoster = await User.findByIdAndUpdate(
       post.postedBy,
       {
         $inc: {
-          reputation: reputationDeltaForVote(voteType)
+          reputation: voteChange.reputationDelta
         }
       },
       { new: true }
     );
 
     return res.json({
-      message: "Vote recorded successfully.",
+      message: messageForVoteAction(voteChange.action),
       post,
+      currentVote: voteChange.currentVote,
       posterReputation: updatedPoster.reputation
     });
   } catch (error) {
