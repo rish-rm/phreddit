@@ -46,6 +46,20 @@ test("validateRegistrationInput returns all important registration validation er
   assert.ok(result.errors.length >= 2);
 });
 
+test("validateRegistrationInput rejects passwords shorter than eight characters", () => {
+  const result = validateRegistrationInput({
+    firstName: "Ava",
+    lastName: "Stone",
+    displayName: "avastone",
+    email: "ava@example.com",
+    password: "S7!pass",
+    confirmPassword: "S7!pass"
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.includes("Password must be at least 8 characters."));
+});
+
 test("requireNonEmptyString reports client input errors as bad requests", () => {
   assert.equal(requireNonEmptyString("  hello  ", "Greeting"), "hello");
 

@@ -7,6 +7,8 @@ import Post from "../models/Post.js";
 import Report from "../models/Report.js";
 import User from "../models/User.js";
 
+process.env.NODE_ENV = "test";
+
 function uniqueMongoUri(baseUri) {
   const fallbackDbName = "phreddit_test";
   const suffix = `${process.pid}_${Math.random().toString(36).slice(2, 8)}`;

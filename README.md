@@ -1,5 +1,7 @@
 # Phreddit
 
+[![CI](https://github.com/rish-rm/phreddit/actions/workflows/ci.yml/badge.svg)](https://github.com/rish-rm/phreddit/actions/workflows/ci.yml)
+
 Phreddit is a full-stack Reddit-inspired community forum built with React, Express, MongoDB, and Mongoose. It supports guest browsing, session-based accounts, communities, posts, link flair, threaded comments, saved posts, reputation-aware voting, user reporting, profile management, and admin moderation flows.
 
 The project is structured as a portfolio-ready MERN application with a polished responsive UI, isolated backend integration tests, and Playwright coverage for core browser workflows.
@@ -32,7 +34,7 @@ The project is structured as a portfolio-ready MERN application with a polished 
 ## Tech Stack
 
 - React 18 and Vite
-- Express 5
+- Express 4
 - MongoDB and Mongoose
 - bcrypt password hashing
 - express-session with optional Mongo-backed session store
@@ -43,6 +45,7 @@ The project is structured as a portfolio-ready MERN application with a polished 
 
 ```text
 phreddit/
+├── .github/workflows/      # CI for lint, build, unit, integration, and e2e checks
 ├── client/
 │   ├── e2e/                 # Playwright browser tests
 │   ├── public/
@@ -136,6 +139,7 @@ Server:
 - `AUTH_RATE_LIMIT_WINDOW_MS`: Login/register rate-limit window. Defaults to 15 minutes.
 - `AUTH_RATE_LIMIT_MAX`: Login/register attempts per window. Defaults to `20`.
 - `DISABLE_RATE_LIMIT`: Set to `true` only for trusted local/debug scenarios.
+- `ENABLE_TEST_AUTH_HEADER`: Set to `true` only in a trusted test harness to accept `x-test-user-id`; production should leave this unset.
 
 Client:
 
@@ -145,6 +149,17 @@ Testing:
 
 - `TEST_MONGO_URI`: Base MongoDB URI for integration tests. Each test process derives a unique database name from this URI.
 - `E2E_MONGO_URI`: MongoDB URI used by the Playwright web-server setup.
+
+## Deployment
+
+The frontend can deploy to Vercel from the repository root. `vercel.json` installs the `client` package, builds the Vite app, serves `client/dist`, and rewrites client-side routes to `index.html`.
+
+For a fully working public app, deploy the API and database separately:
+
+- MongoDB Atlas or another hosted MongoDB provider for `MONGO_URI`
+- A Node web service for `server/` with build command `npm ci` and start command `npm start`
+- Vercel environment variable `VITE_API_BASE_URL=https://your-api.example.com/api`
+- API environment variables `CLIENT_ORIGIN=https://your-vercel-app.vercel.app`, `SESSION_COOKIE_SAMESITE=none`, `SESSION_COOKIE_SECURE=true`, and a strong `SESSION_SECRET`
 
 ## Scripts
 
@@ -183,7 +198,7 @@ E2E_MONGO_URI=mongodb://127.0.0.1:27028/phreddit_e2e npm run test:e2e
 ## Architecture Notes
 
 - `server/server.js` exports `createApp()` for testability and `startServer()` for normal runtime startup.
-- Test auth can inject `x-test-user-id` while production auth uses session cookies.
+- Test auth can inject `x-test-user-id` only when `NODE_ENV=test` or `ENABLE_TEST_AUTH_HEADER=true`; production auth uses session cookies.
 - Post listings use `server/utils/postStats.js` to attach recursive `commentCount` and `latestCommentAt` without relying on partially populated comments.
 - Frontend Active sort keeps posts with comment activity above empty posts and sorts by latest comment/reply timestamp.
 - Saved posts are modeled as user-to-post references and returned through profile content instead of duplicating post snapshots.
@@ -199,8 +214,8 @@ E2E_MONGO_URI=mongodb://127.0.0.1:27028/phreddit_e2e npm run test:e2e
 - **Product thinking:** Phreddit goes beyond CRUD with saved posts, reporting, admin review, reputation-aware voting, and joined-community prioritization.
 - **Scalable data shape:** Posts, comments, reports, communities, users, and link flairs are normalized Mongoose models with explicit reference cleanup.
 - **Authorization:** Ownership checks protect edit/delete flows, admins get elevated review/user-management capabilities, and guests stay read-only.
-- **Reliability:** Integration tests use isolated MongoDB names per process, while Playwright runs serialized against dedicated e2e data.
-- **Security:** Passwords are hashed with bcrypt, sessions are HTTP-only, CORS is allowlisted, input is validated, and auth endpoints are rate limited.
+- **Reliability:** GitHub Actions runs lint, build, unit, integration, and e2e checks; integration tests use isolated MongoDB names per process, while Playwright runs serialized against dedicated e2e data.
+- **Security:** Passwords are hashed with bcrypt, login regenerates sessions, session cookies are HTTP-only, CORS is allowlisted, input is validated, auth endpoints are rate limited, and test-only auth headers are gated away from production.
 - **Accessibility/UI:** The app uses persistent navigation, semantic buttons/forms/tabs, visible focus states, responsive layout, and clear empty/error states.
 
 ## Repository Hygiene

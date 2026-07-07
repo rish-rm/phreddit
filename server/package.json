@@ -10,9 +10,9 @@
     "start": "node server.js",
     "init": "node init.js",
     "lint": "eslint .",
-    "test:unit": "node --test \"./tests/*.unit.test.js\"",
-    "test:int": "node --test \"./tests/*.int.test.js\"",
-    "test:coverage": "node --test --experimental-test-coverage \"./tests/*.unit.test.js\""
+    "test:unit": "node --test ./tests/*.unit.test.js",
+    "test:int": "node --test ./tests/*.int.test.js",
+    "test:coverage": "node --test --experimental-test-coverage ./tests/*.unit.test.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

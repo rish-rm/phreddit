@@ -1,3 +1,5 @@
+export const MIN_PASSWORD_LENGTH = 8;
+
 export function validateEmail(email) {
   if (typeof email !== "string") return false;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -43,6 +45,9 @@ export function validateRegistrationInput(input) {
   }
   if (!input?.password) {
     errors.push("Password is required.");
+  }
+  if (input?.password && input.password.length < MIN_PASSWORD_LENGTH) {
+    errors.push(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
   }
   if (input?.password !== input?.confirmPassword) {
     errors.push("Passwords must match.");
