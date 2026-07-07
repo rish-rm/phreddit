@@ -1,5 +1,5 @@
 import Comment from "../models/Comment.js";
-import { voteTypeForUser } from "./voting.js";
+import { presentVotable } from "./voting.js";
 
 export function postIdOf(post) {
   return String(post?._id || post);
@@ -40,9 +40,7 @@ export async function attachPostStats(posts, options = {}) {
   const currentUserId = options.currentUserId || null;
 
   return posts.map((post) => {
-    const plainPost = typeof post.toObject === "function"
-      ? post.toObject({ virtuals: true })
-      : post;
+    const plainPost = presentVotable(post, currentUserId);
     const stats = statsByPostId.get(postIdOf(plainPost)) || {
       commentCount: 0,
       latestCommentAt: null
@@ -51,8 +49,7 @@ export async function attachPostStats(posts, options = {}) {
     return {
       ...plainPost,
       commentCount: stats.commentCount,
-      latestCommentAt: stats.latestCommentAt,
-      userVote: voteTypeForUser(plainPost.votedBy, currentUserId)
+      latestCommentAt: stats.latestCommentAt
     };
   });
 }

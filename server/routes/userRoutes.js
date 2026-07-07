@@ -6,6 +6,7 @@ import User from "../models/User.js";
 import { requireAdmin, requireLogin } from "../middleware/auth.js";
 import { deleteUserCascade } from "../utils/cascadeDelete.js";
 import { attachPostStats } from "../utils/postStats.js";
+import { presentVotable } from "../utils/voting.js";
 
 const router = express.Router();
 
@@ -109,8 +110,8 @@ router.get("/:id/profile-content", requireLogin, async (req, res, next) => {
     return res.json({
       user,
       communities,
-      posts,
-      comments,
+      posts: posts.map((post) => presentVotable(post)),
+      comments: comments.map((comment) => presentVotable(comment)),
       savedPosts: await attachPostStats(savedPosts)
     });
   } catch (error) {

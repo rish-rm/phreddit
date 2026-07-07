@@ -8,62 +8,20 @@ import { deletePostAndComments } from "../utils/cascadeDelete.js";
 import {
   applyVoteChangeToDocument,
   canUserVote,
-  resolveVoteChange,
-  voteTypeForUser
+  presentVotable,
+  resolveVoteChange
 } from "../utils/voting.js";
+import { buildCommentTree } from "../utils/commentTree.js";
 import { attachPostStats } from "../utils/postStats.js";
 import { requireNonEmptyString } from "../utils/validation.js";
 
 const router = express.Router();
 
-function commentPopulate(depth = 4) {
-  if (depth <= 0) {
-    return {
-      path: "replies",
-      populate: {
-        path: "commentedBy",
-        select: "displayName reputation"
-      }
-    };
-  }
-
-  return {
-    path: "replies",
-    populate: [
-      {
-        path: "commentedBy",
-        select: "displayName reputation"
-      },
-      commentPopulate(depth - 1)
-    ]
-  };
-}
-
 function populatePost(query) {
   return query
     .populate("postedBy", "displayName reputation")
     .populate("community", "name")
-    .populate("linkFlair", "content")
-    .populate({
-      path: "comments",
-      populate: [
-        {
-          path: "commentedBy",
-          select: "displayName reputation"
-        },
-        commentPopulate()
-      ]
-    });
-}
-
-function addUserVoteToComments(comments = [], currentUserId = null) {
-  if (!Array.isArray(comments)) return [];
-
-  return comments.map((comment) => ({
-    ...comment,
-    userVote: voteTypeForUser(comment.votedBy, currentUserId),
-    replies: addUserVoteToComments(comment.replies, currentUserId)
-  }));
+    .populate("linkFlair", "content");
 }
 
 function messageForVoteAction(action) {
@@ -144,10 +102,11 @@ router.get("/:id", async (req, res, next) => {
     const [postWithStats] = await attachPostStats([post], {
       currentUserId: req.currentUser?._id
     });
-    postWithStats.comments = addUserVoteToComments(
-      postWithStats.comments,
-      req.currentUser?._id
-    );
+    const comments = await Comment.find({ post: post._id })
+      .populate("commentedBy", "displayName reputation")
+      .sort({ createdAt: -1 });
+
+    postWithStats.comments = buildCommentTree(comments, req.currentUser?._id);
 
     return res.json({ post: postWithStats });
   } catch (error) {
@@ -201,7 +160,7 @@ router.post("/", requireLogin, async (req, res, next) => {
 
     return res.status(201).json({
       message: "Post created successfully.",
-      post
+      post: presentVotable(post, req.currentUser._id)
     });
   } catch (error) {
     next(error);
@@ -243,7 +202,7 @@ router.put("/:id", requireLogin, async (req, res, next) => {
 
     return res.json({
       message: "Post updated successfully.",
-      post
+      post: presentVotable(post, req.currentUser._id)
     });
   } catch (error) {
     next(error);
@@ -320,7 +279,7 @@ router.post("/:id/vote", requireLogin, async (req, res, next) => {
 
     return res.json({
       message: messageForVoteAction(voteChange.action),
-      post,
+      post: presentVotable(post, req.currentUser._id),
       currentVote: voteChange.currentVote,
       posterReputation: updatedPoster.reputation
     });

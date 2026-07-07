@@ -8,6 +8,19 @@ export function voteTypeForUser(votedBy, userId) {
   return vote?.voteType || null;
 }
 
+export function presentVotable(value, currentUserId = null) {
+  const plain = typeof value?.toObject === "function"
+    ? value.toObject({ virtuals: true })
+    : { ...value };
+
+  const { votedBy, ...safeValue } = plain;
+
+  return {
+    ...safeValue,
+    userVote: voteTypeForUser(votedBy, currentUserId)
+  };
+}
+
 export function hasUserAlreadyVoted(votedBy, userId) {
   return Boolean(voteTypeForUser(votedBy, userId));
 }
