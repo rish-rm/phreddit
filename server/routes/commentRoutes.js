@@ -4,21 +4,13 @@ import Post from "../models/Post.js";
 import User from "../models/User.js";
 import { requireLogin } from "../middleware/auth.js";
 import { deleteCommentAndReplies } from "../utils/cascadeDelete.js";
-import {
-  applyVoteChangeToDocument,
-  canUserVote,
-  presentVotable,
-  resolveVoteChange
-} from "../utils/voting.js";
+import { canUserVote } from "../utils/voting.js";
+import { applyVote } from "../utils/voteService.js";
+import { presentVotable } from "../utils/serialize.js";
 import { requireNonEmptyString } from "../utils/validation.js";
+import { emitPostUpdated } from "../realtime.js";
 
 const router = express.Router();
-
-function messageForVoteAction(action) {
-  if (action === "removed") return "Vote removed successfully.";
-  if (action === "switched") return "Vote switched successfully.";
-  return "Vote recorded successfully.";
-}
 
 router.post("/", requireLogin, async (req, res, next) => {
   try {
@@ -79,6 +71,8 @@ router.post("/", requireLogin, async (req, res, next) => {
       }
     });
 
+    emitPostUpdated(post._id);
+
     return res.status(201).json({
       message: "Comment created successfully.",
       comment: presentVotable(comment, req.currentUser._id)
@@ -105,6 +99,7 @@ router.put("/:id", requireLogin, async (req, res, next) => {
 
     comment.content = requireNonEmptyString(req.body.content, "Comment content");
     await comment.save();
+    emitPostUpdated(comment.post);
 
     return res.json({
       message: "Comment updated successfully.",
@@ -130,7 +125,9 @@ router.delete("/:id", requireLogin, async (req, res, next) => {
       });
     }
 
+    const postId = comment.post;
     await deleteCommentAndReplies(comment._id);
+    emitPostUpdated(postId);
 
     return res.json({
       message: "Comment deleted successfully."
@@ -164,30 +161,39 @@ router.post("/:id/vote", requireLogin, async (req, res, next) => {
     }
 
     if (String(comment.commentedBy) === String(req.currentUser._id)) {
-      return res.status(403).json({
+      return res.status(400).json({
         error: "You cannot vote on your own comment."
       });
     }
 
-    const voteChange = resolveVoteChange(comment.votedBy, req.currentUser._id, voteType);
-    applyVoteChangeToDocument(comment, req.currentUser._id, voteChange);
-    await comment.save();
+    const result = await applyVote(Comment, comment._id, req.currentUser._id, voteType);
+    if (!result) {
+      return res.status(409).json({
+        error: "Vote could not be applied. Please try again."
+      });
+    }
 
-    const updatedCommenter = await User.findByIdAndUpdate(
-      comment.commentedBy,
-      {
-        $inc: {
-          reputation: voteChange.reputationDelta
-        }
-      },
-      { new: true }
-    );
+    let commenterReputation = null;
+    if (result.repDelta !== 0) {
+      const updatedCommenter = await User.findByIdAndUpdate(
+        comment.commentedBy,
+        { $inc: { reputation: result.repDelta } },
+        { new: true }
+      );
+      commenterReputation = updatedCommenter?.reputation ?? null;
+    }
+
+    emitPostUpdated(comment.post);
 
     return res.json({
-      message: messageForVoteAction(voteChange.action),
-      comment: presentVotable(comment, req.currentUser._id),
-      currentVote: voteChange.currentVote,
-      commenterReputation: updatedCommenter.reputation
+      message:
+        result.action === "removed"
+          ? "Vote removed."
+          : result.action === "switched"
+            ? "Vote changed."
+            : "Vote recorded successfully.",
+      comment: presentVotable(result.doc, req.currentUser._id),
+      commenterReputation
     });
   } catch (error) {
     next(error);

@@ -1,43 +1,75 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import { api } from "../api/client.js";
 import SortButtons from "../components/SortButtons.jsx";
 import PostList from "../components/PostList.jsx";
-import { sortPostsClient } from "../utils/posts.js";
 
-export default function Search({
-  user,
-  query,
-  setMessage,
-  onOpenPost,
-  onOpenCommunity,
-  onUserRefresh,
-  refreshToken
-}) {
+const PAGE_SIZE = 20;
+
+export default function Search() {
+  const { user, showMessage, refreshCurrentUser, refreshToken } = useOutletContext();
+  const [searchParams] = useSearchParams();
+  const query = (searchParams.get("q") || "").trim();
+
   const [posts, setPosts] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [flairs, setFlairs] = useState([]);
   const [selectedFlair, setSelectedFlair] = useState("");
   const [currentSort, setCurrentSort] = useState("newest");
 
-  useEffect(() => {
-    if (!query) {
-      setPosts([]);
-      return;
-    }
-    Promise.all([
-      api.getPosts({ search: query, linkFlair: selectedFlair }),
-      api.getLinkFlairs().catch(() => ({ linkFlairs: [] }))
-    ])
-      .then(([postData, flairData]) => {
-        setPosts(postData.posts || []);
-        setFlairs(flairData.linkFlairs || []);
-      })
-      .catch((error) => setMessage(error.message));
-  }, [query, setMessage, refreshToken, selectedFlair]);
+  const load = useCallback(
+    async (targetPage, append) => {
+      if (!query) {
+        setPosts([]);
+        setTotal(0);
+        setHasMore(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        setError("");
+        const data = await api.getPosts({
+          search: query,
+          linkFlair: selectedFlair || undefined,
+          sort: currentSort,
+          page: targetPage,
+          limit: PAGE_SIZE
+        });
+        setPosts((previous) =>
+          append ? [...previous, ...(data.posts || [])] : data.posts || []
+        );
+        setPage(data.page || targetPage);
+        setTotal(data.total ?? 0);
+        setHasMore(Boolean(data.hasMore));
+      } catch (loadError) {
+        setError(loadError.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [query, selectedFlair, currentSort]
+  );
 
-  const sortedPosts = sortPostsClient(posts, currentSort);
-  const headerText = sortedPosts.length === 0
-    ? `No results found for: ${query}`
-    : `Results for: ${query}`;
+  useEffect(() => {
+    load(1, false);
+  }, [load, refreshToken]);
+
+  useEffect(() => {
+    api
+      .getLinkFlairs()
+      .then((data) => setFlairs(data.linkFlairs || []))
+      .catch(() => setFlairs([]));
+  }, [refreshToken]);
+
+  const headerText = !query
+    ? "Type a search above to find posts."
+    : total === 0 && !loading
+      ? `No results found for: ${query}`
+      : `Results for: ${query}`;
 
   return (
     <main className="card" aria-label="Search Results Page">
@@ -64,17 +96,30 @@ export default function Search({
           <button type="button" onClick={() => setSelectedFlair("")}>Clear</button>
         )}
       </div>
-      <p className="post-count">{sortedPosts.length} posts</p>
-      <div className="list-column">
-        <PostList
-          posts={sortedPosts}
-          user={user}
-          onOpenPost={onOpenPost}
-          onOpenCommunity={onOpenCommunity}
-          setMessage={setMessage}
-          onUserRefresh={onUserRefresh}
-        />
-      </div>
+      <p className="post-count">Showing {posts.length} of {total} posts</p>
+      {error && (
+        <p className="muted">
+          {error}{" "}
+          <button type="button" onClick={() => load(1, false)}>Retry</button>
+        </p>
+      )}
+      {loading && posts.length === 0 ? (
+        <p className="muted">Searching...</p>
+      ) : (
+        <div className="list-column">
+          <PostList
+            posts={posts}
+            user={user}
+            showMessage={showMessage}
+            onUserRefresh={refreshCurrentUser}
+          />
+        </div>
+      )}
+      {hasMore && (
+        <button type="button" disabled={loading} onClick={() => load(page + 1, true)}>
+          {loading ? "Loading..." : "Load more results"}
+        </button>
+      )}
     </main>
   );
 }

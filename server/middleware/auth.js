@@ -1,12 +1,12 @@
 import User from "../models/User.js";
 
-export function allowsTestAuthHeader(env = process.env) {
-  return env.NODE_ENV === "test" || env.ENABLE_TEST_AUTH_HEADER === "true";
-}
-
 export async function attachCurrentUser(req, _res, next) {
   try {
-    const testUserId = allowsTestAuthHeader() ? req.header("x-test-user-id") : null;
+    // The x-test-user-id header is a test-only convenience. It is disabled
+    // unless the process is explicitly running in test mode, so it can never
+    // act as an auth bypass in a deployed environment.
+    const testUserId =
+      process.env.NODE_ENV === "test" ? req.header("x-test-user-id") : null;
     const userId = req.session?.userId || testUserId;
     req.currentUser = userId ? await User.findById(userId) : null;
     next();

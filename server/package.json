@@ -10,9 +10,11 @@
     "start": "node server.js",
     "init": "node init.js",
     "lint": "eslint .",
-    "test:unit": "node --test ./tests/*.unit.test.js",
-    "test:int": "node --test ./tests/*.int.test.js",
-    "test:coverage": "node --test --experimental-test-coverage ./tests/*.unit.test.js"
+    "test:unit": "NODE_ENV=test node --test \"./tests/*.unit.test.js\"",
+    "test:int": "NODE_ENV=test node --test --test-concurrency=1 \"./tests/*.int.test.js\"",
+    "test:coverage": "NODE_ENV=test node --test --experimental-test-coverage \"./tests/*.unit.test.js\"",
+    "bench": "node bench/run.js",
+    "bench:seed": "node bench/seed.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -21,10 +23,13 @@
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
     "express-session": "^1.18.0",
-    "mongoose": "^8.2.1"
+    "helmet": "^8.2.0",
+    "mongoose": "^8.2.1",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "autocannon": "^8.0.0",
     "eslint": "^10.4.0",
     "globals": "^17.6.0",
     "supertest": "^7.0.0"

@@ -58,5 +58,6 @@ const commentSchema = new mongoose.Schema(
 );
 
 commentSchema.index({ content: "text" });
+commentSchema.index({ post: 1, createdAt: -1 });
 
 export default mongoose.model("Comment", commentSchema);

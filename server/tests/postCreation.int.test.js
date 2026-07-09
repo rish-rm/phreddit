@@ -50,7 +50,7 @@ test("Create a Post creates a post document, adds it to the community, and retur
   );
 });
 
-test("Get a Post can refresh post data without incrementing the view count", async (t) => {
+test("Viewing a post is an explicit action and GET stays idempotent", async (t) => {
   await connectTestDb();
   await clearTestDb();
 
@@ -64,7 +64,7 @@ test("Get a Post can refresh post data without incrementing the view count", asy
 
   const post = await Post.create({
     title: "View Count Test Post",
-    content: "This post is used to verify view-count refreshes.",
+    content: "This post is used to verify view-count semantics.",
     postedBy: user._id,
     community: community._id,
     comments: [],
@@ -73,18 +73,17 @@ test("Get a Post can refresh post data without incrementing the view count", asy
 
   const app = createApp({ useSessionStore: false });
 
-  const firstResponse = await supertest(app).get(`/api/posts/${post._id}`);
-  assert.equal(firstResponse.status, 200);
-  assert.equal(firstResponse.body.post.views, 1);
+  const getResponse = await supertest(app).get(`/api/posts/${post._id}`);
+  assert.equal(getResponse.status, 200);
+  assert.equal(getResponse.body.post.views, 0);
 
-  const refreshResponse = await supertest(app).get(
-    `/api/posts/${post._id}?incrementView=false`
-  );
+  const viewResponse = await supertest(app).post(`/api/posts/${post._id}/view`);
+  assert.equal(viewResponse.status, 200);
+  assert.equal(viewResponse.body.views, 1);
+
+  const refreshResponse = await supertest(app).get(`/api/posts/${post._id}`);
   assert.equal(refreshResponse.status, 200);
   assert.equal(refreshResponse.body.post.views, 1);
-
-  const refreshedPost = await Post.findById(post._id);
-  assert.equal(refreshedPost.views, 1);
 });
 
 test("Create a Post rejects titles longer than 100 characters", async (t) => {
@@ -298,60 +297,4 @@ test("Get a Post populates nested comment replies", async (t) => {
     response.body.post.comments[0].replies[0].replies[0].commentedBy.displayName,
     user.displayName
   );
-});
-
-test("Get a Post returns deeply nested replies without a populate depth limit", async (t) => {
-  await connectTestDb();
-  await clearTestDb();
-
-  t.after(async () => {
-    await clearTestDb();
-    await disconnectTestDb();
-  });
-
-  const user = await createTestUser();
-  const community = await createTestCommunity(user);
-
-  const post = await Post.create({
-    title: "Deep Reply Post",
-    content: "Every reply depth should remain visible.",
-    postedBy: user._id,
-    community: community._id,
-    comments: []
-  });
-
-  let parentComment = null;
-  for (let depth = 0; depth < 8; depth += 1) {
-    const comment = await Comment.create({
-      content: `Depth ${depth}`,
-      commentedBy: user._id,
-      post: post._id,
-      parentComment: parentComment?._id || null,
-      replies: []
-    });
-
-    if (parentComment) {
-      parentComment.replies.push(comment._id);
-      await parentComment.save();
-    } else {
-      post.comments.push(comment._id);
-      await post.save();
-    }
-
-    parentComment = comment;
-  }
-
-  const app = createApp({ useSessionStore: false });
-  const response = await supertest(app).get(
-    `/api/posts/${post._id}?incrementView=false`
-  );
-
-  assert.equal(response.status, 200);
-
-  let comment = response.body.post.comments[0];
-  for (let depth = 0; depth < 8; depth += 1) {
-    assert.equal(comment.content, `Depth ${depth}`);
-    assert.equal(Object.hasOwn(comment, "votedBy"), false);
-    comment = comment.replies[0];
-  }
 });

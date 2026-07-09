@@ -1,5 +1,5 @@
 import Comment from "../models/Comment.js";
-import { presentVotable } from "./voting.js";
+import { presentVotable } from "./serialize.js";
 
 export function postIdOf(post) {
   return String(post?._id || post);
@@ -10,11 +10,7 @@ export async function buildPostStats(posts) {
   if (ids.length === 0) return new Map();
 
   const stats = await Comment.aggregate([
-    {
-      $match: {
-        post: { $in: ids }
-      }
-    },
+    { $match: { post: { $in: ids } } },
     {
       $group: {
         _id: "$post",
@@ -35,9 +31,8 @@ export async function buildPostStats(posts) {
   );
 }
 
-export async function attachPostStats(posts, options = {}) {
+export async function attachPostStats(posts, currentUserId = null) {
   const statsByPostId = await buildPostStats(posts);
-  const currentUserId = options.currentUserId || null;
 
   return posts.map((post) => {
     const plainPost = presentVotable(post, currentUserId);

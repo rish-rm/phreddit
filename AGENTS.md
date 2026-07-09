@@ -1,0 +1,84 @@
+# AGENTS.md — instructions for AI coding agents
+
+Phreddit is a MERN Reddit clone: `client/` (React 18 + Vite + react-router) and
+`server/` (Express 4 + Mongoose 8 + Socket.IO), session auth via
+express-session + connect-mongo. Node 20+.
+
+## Commands
+
+```bash
+npm run install:all                 # npm ci in server/ and client/
+npm run lint                        # ESLint, both packages (must pass)
+npm --prefix server run test:unit   # node:test, no MongoDB needed
+npm --prefix client run test:unit   # Vitest + RTL, no MongoDB needed
+npm run test:int                    # server integration tests — NEEDS local MongoDB
+npm run test:e2e                    # Playwright — NEEDS MongoDB; boots API + client itself
+npm --prefix client run build       # production build (must pass)
+npm --prefix server run dev         # API on :8000
+npm --prefix client run dev         # client on :5173 (proxies /api and /socket.io)
+```
+
+Integration tests create a disposable database per test file (see
+`server/tests/testHelpers.js`); they are safe to run repeatedly. Playwright
+uses `E2E_MONGO_URI` (defaults to a local `phreddit_e2e` database) and starts
+both servers via `client/playwright.config.js` — do not start them manually.
+
+## Definition of done
+
+Any change: `npm run lint` + both unit suites + `npm --prefix client run build`
+all pass. Server behavior changes: also `npm run test:int`. UI flow changes:
+also `npm run test:e2e`, and update the specs in `client/e2e/` if flows moved.
+
+## Invariants — do not break these
+
+**Server**
+- `votedBy` must NEVER appear in an API response. Serialize posts/comments
+  through `presentVotable()` (`server/utils/serialize.js`), which strips it
+  and adds the caller's own `userVote`.
+- All vote mutations go through `applyVote()` (`server/utils/voteService.js`):
+  single conditional `findOneAndUpdate`s (remove / switch / add). Never
+  read-modify-write vote counts.
+- Every mutation that changes what a post page shows (comments, votes, edits,
+  deletes, moderation removals) must call `emitPostUpdated(postId)` from
+  `server/realtime.js`. It is a no-op in tests by design.
+- `GET /api/posts/:id` fetches comments FLAT in one query and builds the tree
+  in memory. Do not reintroduce nested `populate` (it depth-truncates).
+- View counts increment only via `POST /api/posts/:id/view`. GETs stay
+  idempotent.
+- The `x-test-user-id` header is honored ONLY when `NODE_ENV === "test"`
+  (`server/middleware/auth.js`). Never widen this — it was a production auth
+  bypass once already.
+- Regenerate the session on any privilege change (login AND register do this).
+- Mongo gotchas already handled in `server/routes/postRoutes.js` — keep them:
+  `$text` cannot live inside `$or` (resolve matching ids first), and
+  aggregation pipelines do NOT auto-cast string ids (use `toObjectId()`).
+
+**Client**
+- Navigation is react-router URLs (`/posts/:id`, `/communities/:id`,
+  `/users/:id`, `/search?q=`). No view-state switching; new pages get routes
+  in `src/App.jsx` and read shared state via `useOutletContext()`.
+- User-authored text renders ONLY through `src/components/RichText.jsx`
+  (marked + DOMPurify). Never use `dangerouslySetInnerHTML` elsewhere.
+- Notifications: `showMessage(text, tone)` with tone `"info" | "success" |
+  "error"`. Destructive actions use `src/components/ConfirmDialog.jsx`, never
+  `window.confirm` (Playwright asserts against the dialog).
+- Vote buttons reflect `userVote` (`aria-pressed`, `.active`), and are
+  disabled on own content and below 50 reputation.
+
+## Test-writing notes
+
+- Server integration tests live in `server/tests/*.int.test.js`, unit in
+  `*.unit.test.js` (node:test + supertest against `createApp({ useSessionStore:
+  false })`). Authenticate with `.set("x-test-user-id", id)` or a
+  `supertest.agent` for real session flows.
+- Client unit tests are colocated `src/**/*.test.{js,jsx}`; component tests
+  need the `// @vitest-environment jsdom` pragma.
+- E2e specifics: registration auto-logs-in (do not log in after registering),
+  creating a post/community lands on its page (not Home), post titles are
+  LINKS not buttons, and authors cannot vote on their own posts — use a second
+  user to test voting.
+
+## Style
+
+ESM everywhere. 2-space indent, double quotes, semicolons (ESLint enforces).
+Keep server route handlers thin; shared logic goes in `server/utils/`.

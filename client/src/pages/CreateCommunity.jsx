@@ -1,21 +1,35 @@
 import { useState } from "react";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { api } from "../api/client.js";
 
-export default function CreateCommunity({ setView, setMessage, onSuccess }) {
+export default function CreateCommunity() {
+  const { user, showMessage, refreshData } = useOutletContext();
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
     description: ""
   });
 
+  if (!user) {
+    return (
+      <main className="card">
+        <h1>New Community</h1>
+        <p>You must be logged in to create communities.</p>
+        <button onClick={() => navigate("/home")}>Back Home</button>
+      </main>
+    );
+  }
+
   async function submit(event) {
     event.preventDefault();
     try {
-      await api.createCommunity(form);
-      onSuccess();
-      setMessage("Community created successfully.");
-      setView("home");
+      const data = await api.createCommunity(form);
+      refreshData();
+      showMessage("Community created successfully.", "success");
+      const newId = data.community?._id;
+      navigate(newId ? `/communities/${newId}` : "/home");
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
@@ -41,7 +55,7 @@ export default function CreateCommunity({ setView, setMessage, onSuccess }) {
         />
         <div className="action-row">
           <button type="submit">Submit</button>
-          <button type="button" onClick={() => setView("home")}>Cancel</button>
+          <button type="button" onClick={() => navigate("/home")}>Cancel</button>
         </div>
       </form>
     </main>

@@ -8,8 +8,10 @@
     "lint": "npm --prefix server run lint && npm --prefix client run lint",
     "lint:server": "npm --prefix server run lint",
     "lint:client": "npm --prefix client run lint",
-    "test:unit": "npm --prefix server run test:unit",
+    "test:unit": "npm --prefix server run test:unit && npm --prefix client run test:unit",
     "test:int": "npm --prefix server run test:int",
-    "test:e2e": "npm --prefix client run test:e2e"
+    "test:e2e": "npm --prefix client run test:e2e",
+    "test:unit:server": "npm --prefix server run test:unit",
+    "test:unit:client": "npm --prefix client run test:unit"
   }
 }

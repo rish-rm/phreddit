@@ -1,19 +1,30 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client.js";
-import { displayNameOfUser, formatDate, renderTextWithLinks } from "../utils/format.jsx";
-import { voteButtonLabel, votingDisabledReason } from "../utils/voting.js";
+import { displayNameOfUser, formatDate, userIdOf } from "../utils/format.jsx";
+import RichText from "./RichText.jsx";
 
-export default function CommentItem({ comment, user, postId, depth = 0, setMessage, onReload }) {
+export default function CommentItem({ comment, user, postId, depth = 0, showMessage, onReload }) {
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState("");
+
+  const canVote = Boolean(user) && (user.reputation ?? 0) >= 50;
+  const isOwnComment =
+    user && String(userIdOf(comment.commentedBy)) === String(user._id);
+  const voteHint = !canVote
+    ? "Voting requires a reputation of at least 50."
+    : isOwnComment
+      ? "You cannot vote on your own comment."
+      : undefined;
+  const authorId = userIdOf(comment.commentedBy);
 
   async function vote(voteType) {
     try {
       const data = await api.voteComment(comment._id, voteType);
-      setMessage(data.message);
+      showMessage(data.message, "success");
       await onReload();
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
@@ -30,46 +41,58 @@ export default function CommentItem({ comment, user, postId, depth = 0, setMessa
       setShowReply(false);
       await onReload();
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
   const replies = Array.isArray(comment.replies) ? comment.replies : [];
-  const sortedReplies = [...replies].sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
-  const voteDisabledReason = votingDisabledReason(user, comment.commentedBy, "comment");
 
   return (
     <div className="comment-card" style={{ marginLeft: depth * 24 }}>
       <div className="meta-row">
-        <strong>{displayNameOfUser(comment.commentedBy)}</strong>
+        {authorId ? (
+          <Link className="inline-link" to={`/users/${authorId}`}>
+            <strong>{displayNameOfUser(comment.commentedBy)}</strong>
+          </Link>
+        ) : (
+          <strong>{displayNameOfUser(comment.commentedBy)}</strong>
+        )}
         <span>{formatDate(comment.createdAt)}</span>
-        <span>Up: {comment.upvotes ?? 0}</span>
-        <span>Down: {comment.downvotes ?? 0}</span>
       </div>
-      <div>{renderTextWithLinks(comment.content)}</div>
+      <RichText text={comment.content} />
       {user && (
         <div className="action-row">
           <button
-            className={comment.userVote === "upvote" ? "active" : ""}
-            disabled={Boolean(voteDisabledReason)}
-            title={voteDisabledReason || "Click again to remove your vote."}
+            type="button"
+            aria-label="Upvote"
+            aria-pressed={comment.userVote === "upvote"}
+            className={comment.userVote === "upvote" ? "vote-btn active" : "vote-btn"}
+            disabled={!canVote || isOwnComment}
+            title={voteHint}
             onClick={() => vote("upvote")}
           >
-            {voteButtonLabel("upvote", comment.userVote, comment.upvotes)}
+            ▲ {comment.upvotes ?? 0}
           </button>
           <button
-            className={comment.userVote === "downvote" ? "active" : ""}
-            disabled={Boolean(voteDisabledReason)}
-            title={voteDisabledReason || "Click again to remove your vote."}
+            type="button"
+            aria-label="Downvote"
+            aria-pressed={comment.userVote === "downvote"}
+            className={comment.userVote === "downvote" ? "vote-btn active" : "vote-btn"}
+            disabled={!canVote || isOwnComment}
+            title={voteHint}
             onClick={() => vote("downvote")}
           >
-            {voteButtonLabel("downvote", comment.userVote, comment.downvotes)}
+            ▼ {comment.downvotes ?? 0}
           </button>
-          <button onClick={() => setShowReply((v) => !v)}>
+          <button onClick={() => setShowReply((value) => !value)}>
             {showReply ? "Cancel" : "Reply"}
           </button>
+        </div>
+      )}
+      {!user && (
+        <div className="meta-row">
+          <span>Up: {comment.upvotes ?? 0}</span>
+          <span>Down: {comment.downvotes ?? 0}</span>
         </div>
       )}
       {showReply && (
@@ -82,14 +105,14 @@ export default function CommentItem({ comment, user, postId, depth = 0, setMessa
           <button type="submit">Submit reply</button>
         </form>
       )}
-      {sortedReplies.map((reply) => (
+      {replies.map((reply) => (
         <CommentItem
           key={reply._id}
           comment={reply}
           user={user}
           postId={postId}
           depth={depth + 1}
-          setMessage={setMessage}
+          showMessage={showMessage}
           onReload={onReload}
         />
       ))}

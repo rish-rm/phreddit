@@ -1,4 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useNavigate,
+  useParams
+} from "react-router-dom";
 import { api } from "./api/client.js";
 import AppShell from "./components/AppShell.jsx";
 import Banner from "./components/Banner.jsx";
@@ -12,213 +20,187 @@ import CreatePost from "./pages/CreatePost.jsx";
 import Community from "./pages/Community.jsx";
 import Post from "./pages/Post.jsx";
 import Profile from "./pages/Profile.jsx";
+import UserProfile from "./pages/UserProfile.jsx";
+import NotFound from "./pages/NotFound.jsx";
+
+function Layout({
+  user,
+  communities,
+  showMessage,
+  refreshCurrentUser,
+  refreshData,
+  refreshToken,
+  onLogout
+}) {
+  const navigate = useNavigate();
+  const params = useParams();
+
+  return (
+    <>
+      <div className="top-bar">
+        <Banner user={user} onLogout={onLogout} />
+      </div>
+      <AppShell
+        user={user}
+        communities={communities}
+        selectedCommunityId={params.communityId || null}
+        onHome={() => navigate("/home")}
+        onOpenCommunity={(id) => navigate(`/communities/${id}`)}
+        onCreateCommunity={() => navigate("/communities/new")}
+        onCreatePost={() => navigate("/posts/new")}
+      >
+        <Outlet
+          context={{
+            user,
+            communities,
+            showMessage,
+            refreshCurrentUser,
+            refreshData,
+            refreshToken
+          }}
+        />
+      </AppShell>
+    </>
+  );
+}
 
 export default function App() {
-  const [view, setView] = useState("welcome");
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [selectedCommunityId, setSelectedCommunityId] = useState(null);
-  const [selectedPostId, setSelectedPostId] = useState(null);
-  const [searchValue, setSearchValue] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [message, setMessage] = useState("");
+  const [authChecked, setAuthChecked] = useState(false);
+  const [message, setMessage] = useState(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [communities, setCommunities] = useState([]);
 
-  const isAppView = !["welcome", "register", "login"].includes(view);
+  const showMessage = useCallback((text, tone = "info") => {
+    setMessage({ text, tone });
+  }, []);
 
-  function goHome() {
-    setSelectedCommunityId(null);
-    setSelectedPostId(null);
-    setView("home");
-  }
-
-  function refreshData() {
+  const refreshData = useCallback(() => {
     setRefreshToken((current) => current + 1);
-  }
+  }, []);
 
-  function submitSearch() {
-    const query = searchValue.trim();
-    if (!query) {
-      goHome();
-      return;
-    }
-    setSearchQuery(query);
-    setView("search");
-  }
-
-  function openCommunity(id) {
-    setSelectedCommunityId(id);
-    setSelectedPostId(null);
-    setView("community");
-  }
-
-  function openPost(id) {
-    setSelectedPostId(id);
-    setView("post");
-  }
-
-  function refreshCurrentUser() {
+  const refreshCurrentUser = useCallback(() => {
     api
       .me()
       .then((data) => {
         setUser(data.user);
         refreshData();
       })
-      .catch((error) => setMessage(error.message));
-  }
+      .catch((error) => showMessage(error.message, "error"));
+  }, [refreshData, showMessage]);
 
   async function logout() {
     try {
       await api.logout();
       setUser(null);
-      setView("welcome");
-      setMessage("Logged out successfully.");
       refreshData();
+      showMessage("Logged out successfully.", "success");
+      navigate("/");
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
   useEffect(() => {
     api
       .me()
-      .then((data) => {
-        if (data.user) {
-          setUser(data.user);
-          setView("home");
-        }
-      })
+      .then((data) => setUser(data.user))
       .catch(() => {
-        setMessage("Could not connect to server. Make sure the backend is running.");
-      });
-  }, []);
+        showMessage(
+          "Could not connect to server. Make sure the backend is running.",
+          "error"
+        );
+      })
+      .finally(() => setAuthChecked(true));
+  }, [showMessage]);
 
   useEffect(() => {
-    if (!isAppView) return;
-
+    if (!authChecked) return;
     api
       .getCommunities()
       .then((data) => setCommunities(data.communities || []))
-      .catch((error) => setMessage(error.message));
-  }, [isAppView, refreshToken, user?._id]);
+      .catch((error) => showMessage(error.message, "error"));
+  }, [authChecked, refreshToken, user?._id, showMessage]);
 
   useEffect(() => {
     if (!message) return;
-    const id = setTimeout(() => setMessage(""), 4000);
+    const id = setTimeout(() => setMessage(null), 4000);
     return () => clearTimeout(id);
   }, [message]);
+
+  if (!authChecked) {
+    return (
+      <main className="card">
+        <p className="muted">Loading Phreddit...</p>
+      </main>
+    );
+  }
+
+  const isError = message?.tone === "error";
 
   return (
     <>
       {message && (
-        <p role="status" className="message">
-          {message}
+        <p
+          role={isError ? "alert" : "status"}
+          aria-live={isError ? "assertive" : "polite"}
+          className={`message message--${message.tone}`}
+        >
+          {message.text}
         </p>
       )}
 
-      {isAppView && (
-        <div className="top-bar">
-          <Banner
-            user={user}
-            onHome={goHome}
-            setView={setView}
-            onLogout={logout}
-            searchValue={searchValue}
-            onSearchChange={setSearchValue}
-            onSearchSubmit={submitSearch}
-          />
-        </div>
-      )}
-
-      {view === "welcome" && <Welcome setView={setView} />}
-      {view === "register" && (
-        <Register setView={setView} setMessage={setMessage} />
-      )}
-      {view === "login" && (
-        <Login
-          setView={setView}
-          setUser={setUser}
-          setMessage={setMessage}
+      <Routes>
+        <Route
+          path="/"
+          element={user ? <Navigate to="/home" replace /> : <Welcome />}
         />
-      )}
-      {isAppView && (
-        <AppShell
-          user={user}
-          communities={communities}
-          selectedCommunityId={selectedCommunityId}
-          onHome={goHome}
-          onOpenCommunity={openCommunity}
-          onCreateCommunity={() => setView("create-community")}
-          onCreatePost={() => setView("create-post")}
+        <Route
+          path="/register"
+          element={
+            user ? (
+              <Navigate to="/home" replace />
+            ) : (
+              <Register setUser={setUser} showMessage={showMessage} />
+            )
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            user ? (
+              <Navigate to="/home" replace />
+            ) : (
+              <Login setUser={setUser} showMessage={showMessage} />
+            )
+          }
+        />
+        <Route
+          element={
+            <Layout
+              user={user}
+              communities={communities}
+              showMessage={showMessage}
+              refreshCurrentUser={refreshCurrentUser}
+              refreshData={refreshData}
+              refreshToken={refreshToken}
+              onLogout={logout}
+            />
+          }
         >
-          {view === "home" && (
-            <Home
-              user={user}
-              setMessage={setMessage}
-              onOpenCommunity={openCommunity}
-              onOpenPost={openPost}
-              onUserRefresh={refreshCurrentUser}
-              refreshToken={refreshToken}
-            />
-          )}
-          {view === "search" && (
-            <Search
-              user={user}
-              query={searchQuery}
-              setMessage={setMessage}
-              onOpenPost={openPost}
-              onOpenCommunity={openCommunity}
-              onUserRefresh={refreshCurrentUser}
-              refreshToken={refreshToken}
-            />
-          )}
-          {view === "create-community" && (
-            <CreateCommunity
-              setView={setView}
-              setMessage={setMessage}
-              onSuccess={refreshData}
-            />
-          )}
-          {view === "create-post" && (
-            <CreatePost
-              user={user}
-              setView={setView}
-              setMessage={setMessage}
-              onSuccess={refreshData}
-            />
-          )}
-          {view === "community" && (
-            <Community
-              user={user}
-              communityId={selectedCommunityId}
-              onOpenPost={openPost}
-              setView={setView}
-              setMessage={setMessage}
-              onUserRefresh={refreshCurrentUser}
-              refreshToken={refreshToken}
-            />
-          )}
-          {view === "post" && (
-            <Post
-              user={user}
-              postId={selectedPostId}
-              setView={setView}
-              setMessage={setMessage}
-              onSuccess={refreshData}
-              onUserRefresh={refreshCurrentUser}
-            />
-          )}
-          {view === "profile" && (
-            <Profile
-              user={user}
-              setMessage={setMessage}
-              refreshToken={refreshToken}
-              onUserRefresh={refreshCurrentUser}
-              onOpenPost={openPost}
-            />
-          )}
-        </AppShell>
-      )}
+          <Route path="/home" element={<Home />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/communities/new" element={<CreateCommunity />} />
+          <Route path="/communities/:communityId" element={<Community />} />
+          <Route path="/posts/new" element={<CreatePost />} />
+          <Route path="/posts/:postId" element={<Post />} />
+          <Route path="/users/:userId" element={<UserProfile />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/:userId" element={<Profile />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
     </>
   );
 }

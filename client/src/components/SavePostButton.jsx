@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
 import { isPostSavedByUser } from "../utils/posts.js";
 
-export default function SavePostButton({ user, postId, setMessage, onUserRefresh }) {
+export default function SavePostButton({ user, postId, showMessage, onUserRefresh }) {
   const [isSaved, setIsSaved] = useState(() => isPostSavedByUser(user, postId));
   const [isSaving, setIsSaving] = useState(false);
 
@@ -20,10 +20,10 @@ export default function SavePostButton({ user, postId, setMessage, onUserRefresh
         : await api.savePost(postId);
 
       setIsSaved(!isSaved);
-      setMessage(data.message);
+      showMessage(data.message, "success");
       onUserRefresh?.();
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     } finally {
       setIsSaving(false);
     }
