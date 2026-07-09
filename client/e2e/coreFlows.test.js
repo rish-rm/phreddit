@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+const navigationTimeout = 15000;
+
 // Registration auto-logs the user in, so there is no separate login step.
 async function registerUser(page, { email, displayName, password }) {
   await page.goto("/");
@@ -23,7 +25,10 @@ async function createCommunity(page, communityName) {
   await page.getByRole("button", { name: /submit/i }).click();
 
   // Creating a community lands on the new community page.
-  await expect(page.getByRole("heading", { name: communityName })).toBeVisible();
+  await expect(page).toHaveURL(/\/communities\//, { timeout: navigationTimeout });
+  await expect(page.getByRole("heading", { name: communityName })).toBeVisible({
+    timeout: navigationTimeout
+  });
   await page.getByRole("button", { name: /^home$/i }).first().click();
   await expect(page.getByRole("heading", { name: /home/i })).toBeVisible();
 }
@@ -38,7 +43,10 @@ async function createPost(page, { title, content, flair }) {
   await page.getByRole("button", { name: /submit/i }).click();
 
   // Creating a post lands on the new post's page.
-  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page).toHaveURL(/\/posts\//, { timeout: navigationTimeout });
+  await expect(page.getByRole("heading", { name: title })).toBeVisible({
+    timeout: navigationTimeout
+  });
   await page.getByRole("button", { name: /back home/i }).click();
   await expect(page.getByRole("heading", { name: /home/i })).toBeVisible();
   await expect(page.getByRole("link", { name: title })).toBeVisible();
