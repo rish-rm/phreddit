@@ -1,84 +1,174 @@
 import express from "express";
-import Community from "../models/Community.js";
+import mongoose from "mongoose";
 import Comment from "../models/Comment.js";
+import Community from "../models/Community.js";
 import Post from "../models/Post.js";
 import User from "../models/User.js";
 import { requireLogin } from "../middleware/auth.js";
 import { deletePostAndComments } from "../utils/cascadeDelete.js";
-import {
-  applyVoteChangeToDocument,
-  canUserVote,
-  presentVotable,
-  resolveVoteChange
-} from "../utils/voting.js";
-import { buildCommentTree } from "../utils/commentTree.js";
+import { canUserVote } from "../utils/voting.js";
+import { applyVote } from "../utils/voteService.js";
 import { attachPostStats } from "../utils/postStats.js";
+import { presentVotable } from "../utils/serialize.js";
 import { requireNonEmptyString } from "../utils/validation.js";
+import { emitPostUpdated } from "../realtime.js";
 
 const router = express.Router();
 
-function populatePost(query) {
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
+const SORTS = new Set(["newest", "oldest", "active"]);
+
+function parsePagination(query) {
+  const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+  const requestedLimit = Number.parseInt(query.limit, 10) || DEFAULT_PAGE_SIZE;
+  const limit = Math.min(Math.max(1, requestedLimit), MAX_PAGE_SIZE);
+  return { page, limit, skip: (page - 1) * limit };
+}
+
+function toObjectId(value, fieldName) {
+  if (!mongoose.isValidObjectId(value)) {
+    const error = new Error(`Invalid ${fieldName} id.`);
+    error.status = 400;
+    throw error;
+  }
+  return new mongoose.Types.ObjectId(String(value));
+}
+
+// Builds the Mongo filter for listings. Ids are cast explicitly because the
+// filter is also fed to an aggregation pipeline, which (unlike find) does
+// not auto-cast strings to ObjectIds. Search uses the text indexes on posts
+// and comments ($text cannot live inside $or, so matching ids are resolved
+// first and folded into the filter).
+async function buildListFilter(query) {
+  const filter = {};
+
+  if (query.community) {
+    filter.community = toObjectId(query.community, "community");
+  }
+
+  if (query.linkFlair) {
+    filter.linkFlair = toObjectId(query.linkFlair, "link flair");
+  }
+
+  const search = String(query.search || "").trim();
+  if (search) {
+    const [postMatches, commentMatches] = await Promise.all([
+      Post.find({ $text: { $search: search } }).select("_id"),
+      Comment.find({ $text: { $search: search } }).select("post")
+    ]);
+
+    const uniqueIds = new Set([
+      ...postMatches.map((doc) => String(doc._id)),
+      ...commentMatches.map((doc) => String(doc.post))
+    ]);
+    filter._id = {
+      $in: [...uniqueIds].map((id) => new mongoose.Types.ObjectId(id))
+    };
+  }
+
+  return filter;
+}
+
+function hydratePostsQuery(query) {
   return query
-    .populate("postedBy", "displayName reputation")
+    .populate("postedBy", "displayName")
     .populate("community", "name")
     .populate("linkFlair", "content");
 }
 
-function messageForVoteAction(action) {
-  if (action === "removed") return "Vote removed successfully.";
-  if (action === "switched") return "Vote switched successfully.";
-  return "Vote recorded successfully.";
+// "Active" ranks posts with comment activity first (by latest comment or
+// reply), then quiet posts by creation date. Computed in an aggregation so
+// it can be sorted and paginated database-side.
+async function listActivePosts(filter, skip, limit) {
+  const ordered = await Post.aggregate([
+    { $match: filter },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "_id",
+        foreignField: "post",
+        as: "cs",
+        pipeline: [{ $project: { createdAt: 1 } }]
+      }
+    },
+    {
+      $addFields: {
+        commentCount: { $size: "$cs" },
+        latestCommentAt: {
+          $max: {
+            $map: { input: "$cs", as: "c", in: "$$c.createdAt" }
+          }
+        }
+      }
+    },
+    {
+      $addFields: {
+        hasComments: { $gt: ["$commentCount", 0] },
+        activityAt: {
+          $cond: ["$hasComments", "$latestCommentAt", "$createdAt"]
+        }
+      }
+    },
+    { $sort: { hasComments: -1, activityAt: -1, _id: -1 } },
+    { $skip: skip },
+    { $limit: limit },
+    { $project: { _id: 1, commentCount: 1, latestCommentAt: 1 } }
+  ]);
+
+  const orderedIds = ordered.map((item) => String(item._id));
+  const statsById = new Map(
+    ordered.map((item) => [
+      String(item._id),
+      { commentCount: item.commentCount, latestCommentAt: item.latestCommentAt || null }
+    ])
+  );
+
+  const docs = await hydratePostsQuery(
+    Post.find({ _id: { $in: orderedIds } })
+  );
+  const docsById = new Map(docs.map((doc) => [String(doc._id), doc]));
+
+  return orderedIds
+    .map((id) => ({ doc: docsById.get(id), stats: statsById.get(id) }))
+    .filter((item) => item.doc);
 }
 
 router.get("/", async (req, res, next) => {
   try {
-    const filter = {};
+    const sort = SORTS.has(req.query.sort) ? req.query.sort : "newest";
+    const { page, limit, skip } = parsePagination(req.query);
+    const filter = await buildListFilter(req.query);
+    const currentUserId = req.currentUser?._id || null;
 
-    if (req.query.community) {
-      filter.community = req.query.community;
+    const total = await Post.countDocuments(filter);
+
+    let posts;
+    if (sort === "active") {
+      const items = await listActivePosts(filter, skip, limit);
+      posts = items.map(({ doc, stats }) => ({
+        ...presentVotable(doc, currentUserId),
+        commentCount: stats?.commentCount ?? 0,
+        latestCommentAt: stats?.latestCommentAt ?? null
+      }));
+    } else {
+      const direction = sort === "oldest" ? 1 : -1;
+      const docs = await hydratePostsQuery(
+        Post.find(filter)
+          .sort({ createdAt: direction, _id: direction })
+          .skip(skip)
+          .limit(limit)
+      );
+      posts = await attachPostStats(docs, currentUserId);
     }
-
-    if (req.query.linkFlair) {
-      filter.linkFlair = req.query.linkFlair;
-    }
-
-    if (req.query.search) {
-      const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const terms = String(req.query.search)
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean)
-        .map(escape);
-
-      if (terms.length > 0) {
-        const orConditions = [];
-        for (const term of terms) {
-          const wordRegex = new RegExp(`\\b${term}\\b`, "i");
-          orConditions.push({ title: wordRegex });
-          orConditions.push({ content: wordRegex });
-        }
-        const commentRegexes = terms.map((t) => new RegExp(`\\b${t}\\b`, "i"));
-        const matchingComments = await Comment.find({
-          $or: commentRegexes.map((re) => ({ content: re }))
-        }).select("post");
-        if (matchingComments.length > 0) {
-          orConditions.push({
-            _id: { $in: matchingComments.map((c) => c.post) }
-          });
-        }
-        filter.$or = orConditions;
-      }
-    }
-
-    const posts = await Post.find(filter)
-      .populate("postedBy", "displayName")
-      .populate("community", "name")
-      .populate("linkFlair", "content")
-      .populate("comments", "createdAt")
-      .sort({ createdAt: -1 });
 
     return res.json({
-      posts: await attachPostStats(posts, { currentUserId: req.currentUser?._id })
+      posts,
+      page,
+      limit,
+      total,
+      hasMore: skip + posts.length < total,
+      sort
     });
   } catch (error) {
     next(error);
@@ -87,28 +177,77 @@ router.get("/", async (req, res, next) => {
 
 router.get("/:id", async (req, res, next) => {
   try {
-    const post = await populatePost(Post.findById(req.params.id));
+    const post = await Post.findById(req.params.id)
+      .populate("postedBy", "displayName reputation")
+      .populate("community", "name")
+      .populate("linkFlair", "content");
+
     if (!post) {
       return res.status(404).json({
         error: "Post not found."
       });
     }
 
-    if (req.query.incrementView !== "false") {
-      post.views += 1;
-      await post.save();
-    }
+    const currentUserId = req.currentUser?._id || null;
 
-    const [postWithStats] = await attachPostStats([post], {
-      currentUserId: req.currentUser?._id
-    });
+    // Comments are fetched flat in one indexed query and assembled into a
+    // tree in memory, so thread depth is unbounded (the previous nested
+    // populate silently truncated replies beyond a fixed depth).
     const comments = await Comment.find({ post: post._id })
       .populate("commentedBy", "displayName reputation")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    postWithStats.comments = buildCommentTree(comments, req.currentUser?._id);
+    const byId = new Map();
+    for (const comment of comments) {
+      const presented = presentVotable(comment, currentUserId);
+      presented.replies = [];
+      byId.set(String(presented._id), presented);
+    }
 
-    return res.json({ post: postWithStats });
+    const rootComments = [];
+    for (const comment of byId.values()) {
+      const parentId = comment.parentComment ? String(comment.parentComment) : null;
+      const parent = parentId ? byId.get(parentId) : null;
+      if (parent) {
+        parent.replies.push(comment);
+      } else {
+        rootComments.push(comment);
+      }
+    }
+
+    let latestCommentAt = null;
+    for (const comment of comments) {
+      if (!latestCommentAt || comment.createdAt > latestCommentAt) {
+        latestCommentAt = comment.createdAt;
+      }
+    }
+
+    const presentedPost = {
+      ...presentVotable(post, currentUserId),
+      comments: rootComments,
+      commentCount: comments.length,
+      latestCommentAt
+    };
+
+    return res.json({ post: presentedPost });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// View counting is an explicit action, keeping GET requests idempotent.
+router.post("/:id/view", async (req, res, next) => {
+  try {
+    const post = await Post.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { views: 1 } },
+      { new: true }
+    );
+    if (!post) {
+      return res.status(404).json({ error: "Post not found." });
+    }
+    return res.json({ views: post.views });
   } catch (error) {
     next(error);
   }
@@ -199,6 +338,7 @@ router.put("/:id", requireLogin, async (req, res, next) => {
     }
 
     await post.save();
+    emitPostUpdated(post._id);
 
     return res.json({
       message: "Post updated successfully.",
@@ -225,6 +365,7 @@ router.delete("/:id", requireLogin, async (req, res, next) => {
     }
 
     await deletePostAndComments(post._id);
+    emitPostUpdated(post._id);
 
     return res.json({
       message: "Post deleted successfully."
@@ -258,30 +399,39 @@ router.post("/:id/vote", requireLogin, async (req, res, next) => {
     }
 
     if (String(post.postedBy) === String(req.currentUser._id)) {
-      return res.status(403).json({
+      return res.status(400).json({
         error: "You cannot vote on your own post."
       });
     }
 
-    const voteChange = resolveVoteChange(post.votedBy, req.currentUser._id, voteType);
-    applyVoteChangeToDocument(post, req.currentUser._id, voteChange);
-    await post.save();
+    const result = await applyVote(Post, post._id, req.currentUser._id, voteType);
+    if (!result) {
+      return res.status(409).json({
+        error: "Vote could not be applied. Please try again."
+      });
+    }
 
-    const updatedPoster = await User.findByIdAndUpdate(
-      post.postedBy,
-      {
-        $inc: {
-          reputation: voteChange.reputationDelta
-        }
-      },
-      { new: true }
-    );
+    let posterReputation = null;
+    if (result.repDelta !== 0) {
+      const updatedPoster = await User.findByIdAndUpdate(
+        post.postedBy,
+        { $inc: { reputation: result.repDelta } },
+        { new: true }
+      );
+      posterReputation = updatedPoster?.reputation ?? null;
+    }
+
+    emitPostUpdated(post._id);
 
     return res.json({
-      message: messageForVoteAction(voteChange.action),
-      post: presentVotable(post, req.currentUser._id),
-      currentVote: voteChange.currentVote,
-      posterReputation: updatedPoster.reputation
+      message:
+        result.action === "removed"
+          ? "Vote removed."
+          : result.action === "switched"
+            ? "Vote changed."
+            : "Vote recorded successfully.",
+      post: presentVotable(result.doc, req.currentUser._id),
+      posterReputation
     });
   } catch (error) {
     next(error);

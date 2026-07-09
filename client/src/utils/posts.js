@@ -1,33 +1,3 @@
-export function latestActivityTime(post) {
-  const latestCommentAt = new Date(post.latestCommentAt || 0).getTime();
-  if (Number.isFinite(latestCommentAt) && latestCommentAt > 0) {
-    return latestCommentAt;
-  }
-
-  return latestCommentTime(post.comments || []);
-}
-
-function createdTime(post) {
-  const time = new Date(post.createdAt || 0).getTime();
-  return Number.isFinite(time) ? time : 0;
-}
-
-function latestCommentTime(comments) {
-  let latest = 0;
-
-  for (const comment of comments) {
-    const createdAt = new Date(comment.createdAt || 0).getTime();
-    if (Number.isFinite(createdAt)) {
-      latest = Math.max(latest, createdAt);
-    }
-    if (Array.isArray(comment.replies)) {
-      latest = Math.max(latest, latestCommentTime(comment.replies));
-    }
-  }
-
-  return latest;
-}
-
 function countCommentTree(comments) {
   return comments.reduce((total, comment) => {
     const replies = Array.isArray(comment.replies) ? comment.replies : [];
@@ -49,34 +19,6 @@ export function isPostSavedByUser(user, postId) {
   return (user.savedPosts || []).some((savedPost) => (
     String(savedPost?._id || savedPost) === String(postId)
   ));
-}
-
-function hasCommentActivity(post) {
-  return commentCountOf(post) > 0;
-}
-
-export function sortPostsClient(posts, order) {
-  const copy = [...posts];
-  if (order === "oldest") {
-    return copy.sort((a, b) => createdTime(a) - createdTime(b));
-  }
-  if (order === "active") {
-    return copy.sort((a, b) => {
-      const aHasComments = hasCommentActivity(a);
-      const bHasComments = hasCommentActivity(b);
-
-      if (aHasComments !== bHasComments) {
-        return aHasComments ? -1 : 1;
-      }
-
-      if (aHasComments && bHasComments) {
-        return latestActivityTime(b) - latestActivityTime(a);
-      }
-
-      return createdTime(b) - createdTime(a);
-    });
-  }
-  return copy.sort((a, b) => createdTime(b) - createdTime(a));
 }
 
 export function getJoinedCommunityIdSet(user) {
@@ -102,4 +44,28 @@ export function splitPostsByMembership(posts, user) {
     }
   }
   return { joinedPosts, otherPosts };
+}
+
+function scoreOf(comment) {
+  return (comment.upvotes ?? 0) - (comment.downvotes ?? 0);
+}
+
+function createdTime(item) {
+  const time = new Date(item.createdAt || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+// Recursively sorts a comment tree. mode: "newest" | "top".
+export function sortComments(comments, mode = "newest") {
+  const copy = (comments || []).map((comment) => ({
+    ...comment,
+    replies: sortComments(comment.replies || [], mode)
+  }));
+
+  if (mode === "top") {
+    return copy.sort(
+      (a, b) => scoreOf(b) - scoreOf(a) || createdTime(b) - createdTime(a)
+    );
+  }
+  return copy.sort((a, b) => createdTime(b) - createdTime(a));
 }

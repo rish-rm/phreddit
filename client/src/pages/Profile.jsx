@@ -1,79 +1,133 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api } from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import EditableItemRow from "../components/EditableItemRow.jsx";
 import { formatDate } from "../utils/format.jsx";
 
-export default function Profile({ user, setMessage, refreshToken, onUserRefresh, onOpenPost }) {
+export default function Profile() {
+  const { user, showMessage, refreshCurrentUser, refreshToken } = useOutletContext();
+  const { userId: viewedUserId } = useParams();
+  const navigate = useNavigate();
+
   const [profile, setProfile] = useState(null);
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
   const [activeTab, setActiveTab] = useState("posts");
-  const [viewedUser, setViewedUser] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [confirm, setConfirm] = useState(null);
   const [localRefresh, setLocalRefresh] = useState(0);
 
-  const profileUser = viewedUser || user;
+  const isViewingOther = Boolean(viewedUserId) && String(viewedUserId) !== String(user?._id || "");
+  const profileTargetId = viewedUserId || user?._id;
 
   useEffect(() => {
-    if (!profileUser?._id) return;
+    setActiveTab("posts");
+    setEditing(null);
+  }, [viewedUserId]);
+
+  useEffect(() => {
+    if (!profileTargetId) return;
     api
-      .getProfileContent(profileUser._id)
+      .getProfileContent(profileTargetId)
       .then((data) => setProfile(data))
-      .catch((error) => setMessage(error.message));
-  }, [profileUser?._id, setMessage, refreshToken, localRefresh]);
+      .catch((error) => showMessage(error.message, "error"));
+  }, [profileTargetId, showMessage, refreshToken, localRefresh]);
 
   useEffect(() => {
     if (!user?.isAdmin) return;
     api
       .listUsers()
       .then((data) => setUsers(data.users || []))
-      .catch((error) => setMessage(error.message));
-  }, [user, setMessage, refreshToken, localRefresh]);
+      .catch((error) => showMessage(error.message, "error"));
+  }, [user, showMessage, refreshToken, localRefresh]);
 
   useEffect(() => {
-    if (!user?.isAdmin || viewedUser) return;
+    if (!user?.isAdmin || isViewingOther) return;
     api
       .listReports()
       .then((data) => setReports(data.reports || []))
-      .catch((error) => setMessage(error.message));
-  }, [user, viewedUser, setMessage, refreshToken, localRefresh]);
+      .catch((error) => showMessage(error.message, "error"));
+  }, [user, isViewingOther, showMessage, refreshToken, localRefresh]);
 
   function refresh() {
     setLocalRefresh((n) => n + 1);
   }
 
-  async function deleteUser(targetUser) {
-    const ok = window.confirm(
-      `Delete user ${targetUser.displayName}? All of their communities, posts, and comments will also be deleted. This cannot be undone.`
-    );
-    if (!ok) return;
+  async function runConfirm(note) {
+    const pending = confirm;
+    setConfirm(null);
+    if (!pending) return;
     try {
-      await api.deleteUser(targetUser._id);
-      setMessage("User deleted successfully.");
-      if (viewedUser?._id === targetUser._id) setViewedUser(null);
-      refresh();
-      onUserRefresh();
+      await pending.run(note);
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
-  async function handleDelete(kind, item) {
+  function requestDeleteUser(targetUser) {
+    setConfirm({
+      title: `Delete user ${targetUser.displayName}?`,
+      body: "All of their communities, posts, and comments will also be deleted. This cannot be undone.",
+      danger: true,
+      run: async () => {
+        await api.deleteUser(targetUser._id);
+        showMessage("User deleted successfully.", "success");
+        if (String(viewedUserId) === String(targetUser._id)) {
+          navigate("/profile");
+        }
+        refresh();
+        refreshCurrentUser();
+      }
+    });
+  }
+
+  function requestDelete(kind, item) {
     const label =
       kind === "post" ? `post "${item.title}"` :
-      kind === "community" ? `community "${item.name}" (its posts and comments will also be deleted)` :
-      "comment";
-    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
-    try {
-      if (kind === "post") await api.deletePost(item._id);
-      else if (kind === "community") await api.deleteCommunity(item._id);
-      else await api.deleteComment(item._id);
-      setMessage(`${kind[0].toUpperCase() + kind.slice(1)} deleted successfully.`);
-      refresh();
-      onUserRefresh();
-    } catch (error) {
-      setMessage(error.message);
-    }
+      kind === "community" ? `community "${item.name}"` :
+      "this comment";
+    const body =
+      kind === "community"
+        ? "Its posts and comments will also be deleted. This cannot be undone."
+        : "This cannot be undone.";
+    setConfirm({
+      title: `Delete ${label}?`,
+      body,
+      danger: true,
+      run: async () => {
+        if (kind === "post") await api.deletePost(item._id);
+        else if (kind === "community") await api.deleteCommunity(item._id);
+        else await api.deleteComment(item._id);
+        showMessage(`${kind[0].toUpperCase() + kind.slice(1)} deleted successfully.`, "success");
+        refresh();
+        refreshCurrentUser();
+      }
+    });
+  }
+
+  function requestResolveReport(report, action) {
+    setConfirm({
+      title: action === "delete_post"
+        ? `Delete reported post "${report.targetPost?.title || "removed post"}"?`
+        : "Dismiss this report?",
+      body: action === "delete_post"
+        ? "The post and all of its comments will be removed."
+        : `Report reason: ${report.reason}.`,
+      danger: action === "delete_post",
+      showNote: true,
+      noteLabel: "Resolution note (optional, visible to admins)",
+      run: async (note) => {
+        const data = await api.resolveReport(report._id, {
+          action,
+          ...(note ? { note } : {})
+        });
+        setReports(data.reports || []);
+        showMessage(data.message, "success");
+        refresh();
+        refreshCurrentUser();
+      }
+    });
   }
 
   async function submitEdit(event) {
@@ -95,41 +149,22 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh,
           content: form.get("content")
         });
       }
-      setMessage(`${editing.kind[0].toUpperCase() + editing.kind.slice(1)} updated successfully.`);
+      showMessage(`${editing.kind[0].toUpperCase() + editing.kind.slice(1)} updated successfully.`, "success");
       setEditing(null);
       refresh();
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
   async function removeSavedPost(post) {
     try {
       await api.unsavePost(post._id);
-      setMessage("Post removed from saved posts.");
+      showMessage("Post removed from saved posts.", "success");
       refresh();
-      onUserRefresh();
+      refreshCurrentUser();
     } catch (error) {
-      setMessage(error.message);
-    }
-  }
-
-  async function resolveReport(report, action) {
-    if (
-      action === "delete_post" &&
-      !window.confirm(`Delete reported post "${report.targetPost?.title || "removed post"}"?`)
-    ) {
-      return;
-    }
-
-    try {
-      const data = await api.resolveReport(report._id, { action });
-      setReports(data.reports || []);
-      setMessage(data.message);
-      refresh();
-      onUserRefresh();
-    } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
@@ -142,27 +177,46 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh,
     );
   }
 
+  const displayUser = isViewingOther ? profile?.user : user;
+
   const tabs = [
     { id: "posts", label: "Posts" },
     { id: "saved", label: "Saved" },
     { id: "communities", label: "Communities" },
     { id: "comments", label: "Comments" },
-    ...(user.isAdmin && !viewedUser ? [{ id: "moderation", label: "Moderation" }] : []),
-    ...(user.isAdmin && !viewedUser ? [{ id: "users", label: "Users" }] : [])
+    ...(user.isAdmin && !isViewingOther ? [{ id: "moderation", label: "Moderation" }] : []),
+    ...(user.isAdmin && !isViewingOther ? [{ id: "users", label: "Users" }] : [])
   ];
 
   return (
     <main className="card" aria-label="Profile Page">
-      {viewedUser && (
-        <button onClick={() => { setViewedUser(null); setActiveTab("posts"); }}>
+      <ConfirmDialog
+        open={Boolean(confirm)}
+        title={confirm?.title || ""}
+        body={confirm?.body}
+        danger={confirm?.danger}
+        showNote={confirm?.showNote}
+        noteLabel={confirm?.noteLabel}
+        onConfirm={runConfirm}
+        onCancel={() => setConfirm(null)}
+      />
+
+      {isViewingOther && (
+        <button onClick={() => navigate("/profile")}>
           Back to your admin profile
         </button>
       )}
-      <h1>{viewedUser ? `${viewedUser.displayName}'s Profile` : "Profile"}</h1>
-      <p><strong>Display name:</strong> {profileUser.displayName}</p>
-      <p><strong>Email:</strong> {profileUser.email}</p>
-      <p><strong>Member since:</strong> {formatDate(profileUser.createdAt)}</p>
-      <p><strong>Reputation:</strong> {profileUser.reputation}</p>
+      <h1>{isViewingOther ? `${displayUser?.displayName || "User"}'s Profile` : "Profile"}</h1>
+      {displayUser ? (
+        <>
+          <p><strong>Display name:</strong> {displayUser.displayName}</p>
+          <p><strong>Email:</strong> {displayUser.email}</p>
+          <p><strong>Member since:</strong> {formatDate(displayUser.createdAt)}</p>
+          <p><strong>Reputation:</strong> {displayUser.reputation}</p>
+        </>
+      ) : (
+        <p className="muted">Loading profile...</p>
+      )}
 
       <div className="tab-row" role="tablist">
         {tabs.map((tab) => (
@@ -212,7 +266,7 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh,
                 title={post.title}
                 subtitle={post.community?.name ? `in ${post.community.name}` : ""}
                 onEdit={() => setEditing({ kind: "post", item: post })}
-                onDelete={() => handleDelete("post", post)}
+                onDelete={() => requestDelete("post", post)}
               />
             ))}
         </div>
@@ -227,7 +281,7 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh,
                 title={community.name}
                 subtitle={community.description}
                 onEdit={() => setEditing({ kind: "community", item: community })}
-                onDelete={() => handleDelete("community", community)}
+                onDelete={() => requestDelete("community", community)}
               />
             ))}
         </div>
@@ -245,8 +299,8 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh,
                   </span>
                 </div>
                 <div className="row-card-actions">
-                  <button onClick={() => onOpenPost(post._id)}>Open</button>
-                  {String(profileUser._id) === String(user._id) && (
+                  <button onClick={() => navigate(`/posts/${post._id}`)}>Open</button>
+                  {!isViewingOther && (
                     <button onClick={() => removeSavedPost(post)}>Remove</button>
                   )}
                 </div>
@@ -264,13 +318,13 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh,
                 title={comment.content.length > 80 ? `${comment.content.slice(0, 80)}...` : comment.content}
                 subtitle={comment.post?.title ? `on "${comment.post.title}"` : ""}
                 onEdit={() => setEditing({ kind: "comment", item: comment })}
-                onDelete={() => handleDelete("comment", comment)}
+                onDelete={() => requestDelete("comment", comment)}
               />
             ))}
         </div>
       )}
 
-      {activeTab === "users" && user.isAdmin && !viewedUser && (
+      {activeTab === "users" && user.isAdmin && !isViewingOther && (
         <div className="list-column">
           {users.length === 0 ? (
             <p>No users found.</p>
@@ -282,8 +336,8 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh,
                   <span className="row-card-subtitle">{listedUser.email} | Rep: {listedUser.reputation}</span>
                 </div>
                 <div className="row-card-actions">
-                  <button onClick={() => { setViewedUser(listedUser); setActiveTab("posts"); }}>Act as user</button>
-                  <button className="danger" onClick={() => deleteUser(listedUser)}>Delete</button>
+                  <button onClick={() => navigate(`/profile/${listedUser._id}`)}>Act as user</button>
+                  <button className="danger" onClick={() => requestDeleteUser(listedUser)}>Delete</button>
                 </div>
               </div>
             ))
@@ -291,7 +345,7 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh,
         </div>
       )}
 
-      {activeTab === "moderation" && user.isAdmin && !viewedUser && (
+      {activeTab === "moderation" && user.isAdmin && !isViewingOther && (
         <div className="list-column">
           {reports.length === 0 ? (
             <p>No pending reports.</p>
@@ -308,10 +362,10 @@ export default function Profile({ user, setMessage, refreshToken, onUserRefresh,
                 </div>
                 <div className="row-card-actions">
                   {report.targetPost && (
-                    <button onClick={() => onOpenPost(report.targetPost._id)}>Open</button>
+                    <button onClick={() => navigate(`/posts/${report.targetPost._id}`)}>Open</button>
                   )}
-                  <button onClick={() => resolveReport(report, "dismiss")}>Dismiss</button>
-                  <button className="danger" onClick={() => resolveReport(report, "delete_post")}>Delete post</button>
+                  <button onClick={() => requestResolveReport(report, "dismiss")}>Dismiss</button>
+                  <button className="danger" onClick={() => requestResolveReport(report, "delete_post")}>Delete post</button>
                 </div>
               </div>
             ))

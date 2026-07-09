@@ -1,32 +1,39 @@
-import { displayNameOfUser, flairContentOf, formatDate, renderTextWithLinks } from "../utils/format.jsx";
+import { Link } from "react-router-dom";
+import { displayNameOfUser, flairContentOf, formatDate, userIdOf } from "../utils/format.jsx";
 import { commentCountOf } from "../utils/posts.js";
+import RichText from "./RichText.jsx";
 import SavePostButton from "./SavePostButton.jsx";
 
-export default function PostCard({
-  post,
-  user,
-  onOpenPost,
-  onOpenCommunity,
-  setMessage,
-  onUserRefresh
-}) {
+export default function PostCard({ post, user, showMessage, onUserRefresh }) {
+  const communityId = post.community?._id || post.community;
+  const authorId = userIdOf(post.postedBy);
+
   return (
     <article className="post-card">
       <p className="meta-row">
-        <button className="inline-link" onClick={() => onOpenCommunity(post.community?._id || post.community)}>
+        <Link className="inline-link" to={`/communities/${communityId}`}>
           {post.community?.name || "Unknown community"}
-        </button>
-        <span>Posted by {displayNameOfUser(post.postedBy)}</span>
+        </Link>
+        <span>
+          Posted by{" "}
+          {authorId ? (
+            <Link className="inline-link" to={`/users/${authorId}`}>
+              {displayNameOfUser(post.postedBy)}
+            </Link>
+          ) : (
+            displayNameOfUser(post.postedBy)
+          )}
+        </span>
       </p>
       <h3>
-        <button className="inline-link strong" onClick={() => onOpenPost(post._id)}>
+        <Link className="inline-link strong" to={`/posts/${post._id}`}>
           {post.title}
-        </button>
+        </Link>
       </h3>
       {flairContentOf(post.linkFlair) && (
         <span className="flair">{flairContentOf(post.linkFlair)}</span>
       )}
-      <p>{renderTextWithLinks(post.content)}</p>
+      <RichText text={post.content} />
       <p className="meta-row">
         <span>{formatDate(post.createdAt)}</span>
         <span>Views: {post.views ?? 0}</span>
@@ -38,7 +45,7 @@ export default function PostCard({
         <SavePostButton
           user={user}
           postId={post._id}
-          setMessage={setMessage}
+          showMessage={showMessage}
           onUserRefresh={onUserRefresh}
         />
       </div>

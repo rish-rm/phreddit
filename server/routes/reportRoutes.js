@@ -4,6 +4,7 @@ import Report from "../models/Report.js";
 import { requireAdmin, requireLogin } from "../middleware/auth.js";
 import { deletePostAndComments } from "../utils/cascadeDelete.js";
 import { requireNonEmptyString } from "../utils/validation.js";
+import { emitPostUpdated } from "../realtime.js";
 
 const router = express.Router();
 const VALID_REASONS = new Set(["spam", "harassment", "off-topic", "other"]);
@@ -129,6 +130,7 @@ router.post("/:id/resolve", requireLogin, requireAdmin, async (req, res, next) =
 
     if (action === "delete_post") {
       await deletePostAndComments(report.targetPost, { deleteReports: false });
+      emitPostUpdated(report.targetPost);
       await Report.updateMany(
         { targetPost: report.targetPost, status: "pending" },
         {

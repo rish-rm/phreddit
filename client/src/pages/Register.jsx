@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 
-export default function Register({ setView, setMessage }) {
+export default function Register({ setUser, showMessage }) {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -14,11 +16,13 @@ export default function Register({ setView, setMessage }) {
   async function submit(event) {
     event.preventDefault();
     try {
-      await api.register(form);
-      setMessage("Account created successfully. Please log in.");
-      setView("welcome");
+      const data = await api.register(form);
+      // Registration starts a session server-side, so log straight in.
+      setUser(data.user);
+      showMessage("Account created successfully. Welcome to Phreddit!", "success");
+      navigate("/home");
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
@@ -30,6 +34,7 @@ export default function Register({ setView, setMessage }) {
         <input
           id="firstName"
           placeholder="First name"
+          required
           value={form.firstName}
           onChange={(event) => setForm({ ...form, firstName: event.target.value })}
         />
@@ -37,6 +42,7 @@ export default function Register({ setView, setMessage }) {
         <input
           id="lastName"
           placeholder="Last name"
+          required
           value={form.lastName}
           onChange={(event) => setForm({ ...form, lastName: event.target.value })}
         />
@@ -45,6 +51,7 @@ export default function Register({ setView, setMessage }) {
           id="email"
           placeholder="Email"
           type="email"
+          required
           value={form.email}
           onChange={(event) => setForm({ ...form, email: event.target.value })}
         />
@@ -52,14 +59,17 @@ export default function Register({ setView, setMessage }) {
         <input
           id="displayName"
           placeholder="Display name"
+          required
           value={form.displayName}
           onChange={(event) => setForm({ ...form, displayName: event.target.value })}
         />
-        <label htmlFor="password">Password</label>
+        <label htmlFor="password">Password (min 8 characters)</label>
         <input
           id="password"
           placeholder="Password"
           type="password"
+          required
+          minLength={8}
           value={form.password}
           onChange={(event) => setForm({ ...form, password: event.target.value })}
         />
@@ -68,12 +78,14 @@ export default function Register({ setView, setMessage }) {
           id="confirmPassword"
           placeholder="Confirm password"
           type="password"
+          required
+          minLength={8}
           value={form.confirmPassword}
           onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
         />
         <div className="action-row">
           <button type="submit">Sign Up</button>
-          <button type="button" onClick={() => setView("welcome")}>Back</button>
+          <button type="button" onClick={() => navigate("/")}>Back</button>
         </div>
       </form>
     </main>

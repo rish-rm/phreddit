@@ -3,7 +3,6 @@ import Community from "../models/Community.js";
 import User from "../models/User.js";
 import { requireLogin } from "../middleware/auth.js";
 import { deleteCommunityCascade } from "../utils/cascadeDelete.js";
-import { attachPostStats } from "../utils/postStats.js";
 import { requireNonEmptyString } from "../utils/validation.js";
 
 const router = express.Router();
@@ -42,14 +41,7 @@ router.get("/:id", async (req, res, next) => {
   try {
     const community = await Community.findById(req.params.id)
       .populate("creator", "displayName")
-      .populate({
-        path: "posts",
-        populate: [
-          { path: "postedBy", select: "displayName" },
-          { path: "community", select: "name" },
-          { path: "linkFlair", select: "content" }
-        ]
-      });
+      .populate("members", "displayName");
 
     if (!community) {
       return res.status(404).json({
@@ -57,8 +49,9 @@ router.get("/:id", async (req, res, next) => {
       });
     }
 
+    // Posts are served by the paginated /api/posts?community=:id listing.
     const communityData = community.toObject({ virtuals: true });
-    communityData.posts = await attachPostStats(community.posts || []);
+    delete communityData.posts;
 
     return res.json({ community: communityData });
   } catch (error) {

@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { api } from "../api/client.js";
 
-export default function CreatePost({ user, setView, setMessage, onSuccess }) {
+export default function CreatePost() {
+  const { user, showMessage, refreshData } = useOutletContext();
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     community: "",
     title: "",
@@ -30,15 +33,15 @@ export default function CreatePost({ user, setView, setMessage, onSuccess }) {
             : [];
         setFlairs(flairList);
       })
-      .catch((error) => setMessage(error.message));
-  }, [setMessage]);
+      .catch((error) => showMessage(error.message, "error"));
+  }, [showMessage]);
 
   if (!user) {
     return (
       <main className="card">
         <h1>Create Post</h1>
         <p>You must be logged in to create posts.</p>
-        <button onClick={() => setView("home")}>Back Home</button>
+        <button onClick={() => navigate("/home")}>Back Home</button>
       </main>
     );
   }
@@ -47,19 +50,19 @@ export default function CreatePost({ user, setView, setMessage, onSuccess }) {
     event.preventDefault();
 
     if (!form.community) {
-      setMessage("Choose a community before creating a post.");
+      showMessage("Choose a community before creating a post.", "error");
       return;
     }
     if (!form.title.trim() || form.title.length > 100) {
-      setMessage("Title is required and must be 100 characters or less.");
+      showMessage("Title is required and must be 100 characters or less.", "error");
       return;
     }
     if (!form.content.trim()) {
-      setMessage("Content is required.");
+      showMessage("Content is required.", "error");
       return;
     }
     if (form.newFlair && form.newFlair.length > 30) {
-      setMessage("New link flair must be 30 characters or less.");
+      showMessage("New link flair must be 30 characters or less.", "error");
       return;
     }
 
@@ -71,17 +74,18 @@ export default function CreatePost({ user, setView, setMessage, onSuccess }) {
         linkFlairId = (data.linkFlair?._id) || data._id;
       }
 
-      await api.createPost({
+      const data = await api.createPost({
         community: form.community,
         title: form.title.trim(),
         content: form.content.trim(),
         linkFlair: linkFlairId
       });
-      onSuccess();
-      setMessage("Post created successfully.");
-      setView("home");
+      refreshData();
+      showMessage("Post created successfully.", "success");
+      const newId = data.post?._id;
+      navigate(newId ? `/posts/${newId}` : "/home");
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
@@ -137,7 +141,7 @@ export default function CreatePost({ user, setView, setMessage, onSuccess }) {
           onChange={(event) => setForm({ ...form, newFlair: event.target.value })}
         />
 
-        <label htmlFor="postContent">Content*</label>
+        <label htmlFor="postContent">Content* (Markdown supported)</label>
         <textarea
           id="postContent"
           placeholder="Post content"
@@ -147,7 +151,7 @@ export default function CreatePost({ user, setView, setMessage, onSuccess }) {
         />
         <div className="action-row">
           <button type="submit" disabled={communities.length === 0}>Submit</button>
-          <button type="button" onClick={() => setView("home")}>Cancel</button>
+          <button type="button" onClick={() => navigate("/home")}>Cancel</button>
         </div>
       </form>
     </main>

@@ -1,42 +1,88 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api } from "../api/client.js";
+import { subscribeToPost } from "../realtime.js";
 import CommentItem from "../components/CommentItem.jsx";
+import RichText from "../components/RichText.jsx";
 import SavePostButton from "../components/SavePostButton.jsx";
-import { displayNameOfUser, flairContentOf, renderTextWithLinks } from "../utils/format.jsx";
-import { commentCountOf } from "../utils/posts.js";
-import { voteButtonLabel, votingDisabledReason } from "../utils/voting.js";
+import { displayNameOfUser, flairContentOf, userIdOf } from "../utils/format.jsx";
+import { commentCountOf, sortComments } from "../utils/posts.js";
 
-export default function Post({ user, postId, setView, setMessage, onSuccess, onUserRefresh }) {
+export default function Post() {
+  const { user, showMessage, refreshCurrentUser, refreshData } = useOutletContext();
+  const { postId } = useParams();
+  const navigate = useNavigate();
+
   const [post, setPost] = useState(null);
   const [commentText, setCommentText] = useState("");
+  const [commentSort, setCommentSort] = useState("newest");
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportForm, setReportForm] = useState({
     reason: "spam",
     details: ""
   });
 
-  const loadPost = useCallback(async ({ incrementView = false } = {}) => {
+  const loadPost = useCallback(async () => {
     if (!postId) return;
     try {
-      const data = await api.getPost(postId, { incrementView });
+      const data = await api.getPost(postId);
       setPost(data.post);
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
-  }, [postId, setMessage]);
+  }, [postId, showMessage]);
+
+  // Initial load + one explicit view count per visit.
+  useEffect(() => {
+    loadPost();
+  }, [loadPost]);
 
   useEffect(() => {
-    loadPost({ incrementView: true });
-  }, [loadPost]);
+    if (!postId) return;
+    api.viewPost(postId).catch(() => {});
+  }, [postId]);
+
+  // Live updates: refetch whenever anyone comments, votes, or edits.
+  useEffect(() => {
+    if (!postId) return undefined;
+    return subscribeToPost(postId, () => {
+      loadPost();
+    });
+  }, [postId, loadPost]);
+
+  const sortedComments = useMemo(
+    () => sortComments(post?.comments || [], commentSort),
+    [post, commentSort]
+  );
+
+  const isOwnPost =
+    user && post && String(userIdOf(post.postedBy)) === String(user._id);
+  const canVote = Boolean(user) && (user.reputation ?? 0) >= 50 && !isOwnPost;
+  const voteHint = !user
+    ? undefined
+    : (user.reputation ?? 0) < 50
+      ? "Voting requires a reputation of at least 50."
+      : isOwnPost
+        ? "You cannot vote on your own post."
+        : undefined;
 
   async function votePost(voteType) {
     try {
       const data = await api.votePost(postId, voteType);
-      setMessage(data.message);
-      onSuccess();
-      await loadPost();
+      setPost((previous) =>
+        previous
+          ? {
+              ...previous,
+              upvotes: data.post.upvotes,
+              downvotes: data.post.downvotes,
+              userVote: data.post.userVote
+            }
+          : previous
+      );
+      showMessage(data.message, "success");
+      refreshData();
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
@@ -48,10 +94,10 @@ export default function Post({ user, postId, setView, setMessage, onSuccess, onU
         content: commentText
       });
       setCommentText("");
-      onSuccess();
+      refreshData();
       await loadPost();
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
@@ -59,11 +105,11 @@ export default function Post({ user, postId, setView, setMessage, onSuccess, onU
     event.preventDefault();
     try {
       const data = await api.reportPost(postId, reportForm);
-      setMessage(data.message);
+      showMessage(data.message, "success");
       setShowReportForm(false);
       setReportForm({ reason: "spam", details: "" });
     } catch (error) {
-      setMessage(error.message);
+      showMessage(error.message, "error");
     }
   }
 
@@ -76,45 +122,62 @@ export default function Post({ user, postId, setView, setMessage, onSuccess, onU
     );
   }
 
-  const canReportPost = user && String(post.postedBy?._id || post.postedBy) !== String(user._id);
-  const postVoteDisabledReason = votingDisabledReason(user, post.postedBy, "post");
+  const canReportPost = user && !isOwnPost;
+  const communityId = post.community?._id || post.community;
+  const authorId = userIdOf(post.postedBy);
 
   return (
     <main className="card" aria-label="Post Page">
       <h1>{post.title}</h1>
-      <p>{renderTextWithLinks(post.content)}</p>
+      <RichText text={post.content} />
       <p className="meta-row">
-        <span>Community: {post.community?.name || "Unknown community"}</span>
-        <span>Posted by {displayNameOfUser(post.postedBy)}</span>
+        <span>
+          Community:{" "}
+          <Link className="inline-link" to={`/communities/${communityId}`}>
+            {post.community?.name || "Unknown community"}
+          </Link>
+        </span>
+        <span>
+          Posted by{" "}
+          {authorId ? (
+            <Link className="inline-link" to={`/users/${authorId}`}>
+              {displayNameOfUser(post.postedBy)}
+            </Link>
+          ) : (
+            displayNameOfUser(post.postedBy)
+          )}
+        </span>
         {flairContentOf(post.linkFlair) && <span>Flair: {flairContentOf(post.linkFlair)}</span>}
         <span>Views: {post.views ?? 0}</span>
         <span>Comments: {commentCountOf(post)}</span>
-        <span>Upvotes: {post.upvotes ?? 0}</span>
-        <span>Downvotes: {post.downvotes ?? 0}</span>
       </p>
       {user ? (
         <div className="action-row">
           <button
-            className={post.userVote === "upvote" ? "active" : ""}
-            disabled={Boolean(postVoteDisabledReason)}
-            title={postVoteDisabledReason || "Click again to remove your vote."}
+            type="button"
+            aria-pressed={post.userVote === "upvote"}
+            className={post.userVote === "upvote" ? "vote-btn active" : "vote-btn"}
+            disabled={!canVote}
+            title={voteHint}
             onClick={() => votePost("upvote")}
           >
-            {voteButtonLabel("upvote", post.userVote, post.upvotes)}
+            Upvote · {post.upvotes ?? 0}
           </button>
           <button
-            className={post.userVote === "downvote" ? "active" : ""}
-            disabled={Boolean(postVoteDisabledReason)}
-            title={postVoteDisabledReason || "Click again to remove your vote."}
+            type="button"
+            aria-pressed={post.userVote === "downvote"}
+            className={post.userVote === "downvote" ? "vote-btn active" : "vote-btn"}
+            disabled={!canVote}
+            title={voteHint}
             onClick={() => votePost("downvote")}
           >
-            {voteButtonLabel("downvote", post.userVote, post.downvotes)}
+            Downvote · {post.downvotes ?? 0}
           </button>
           <SavePostButton
             user={user}
             postId={post._id}
-            setMessage={setMessage}
-            onUserRefresh={onUserRefresh}
+            showMessage={showMessage}
+            onUserRefresh={refreshCurrentUser}
           />
           {canReportPost && (
             <button type="button" onClick={() => setShowReportForm((value) => !value)}>
@@ -123,7 +186,9 @@ export default function Post({ user, postId, setView, setMessage, onSuccess, onU
           )}
         </div>
       ) : (
-        <p className="muted">Login to vote or comment.</p>
+        <p className="muted">
+          Upvotes: {post.upvotes ?? 0} · Downvotes: {post.downvotes ?? 0} — login to vote or comment.
+        </p>
       )}
       {showReportForm && (
         <form className="inline-form" onSubmit={submitReport}>
@@ -152,8 +217,26 @@ export default function Post({ user, postId, setView, setMessage, onSuccess, onU
           </div>
         </form>
       )}
-      <button onClick={() => setView("home")}>Back Home</button>
-      <h2>Comments</h2>
+      <button onClick={() => navigate("/home")}>Back Home</button>
+      <div className="page-header">
+        <h2>Comments</h2>
+        <div className="action-row">
+          <button
+            type="button"
+            className={commentSort === "newest" ? "active" : ""}
+            onClick={() => setCommentSort("newest")}
+          >
+            Newest
+          </button>
+          <button
+            type="button"
+            className={commentSort === "top" ? "active" : ""}
+            onClick={() => setCommentSort("top")}
+          >
+            Top
+          </button>
+        </div>
+      </div>
       {user && (
         <form onSubmit={submitComment}>
           <textarea
@@ -165,23 +248,20 @@ export default function Post({ user, postId, setView, setMessage, onSuccess, onU
         </form>
       )}
       <div className="list-column">
-        {(post.comments || []).length === 0 ? (
+        {sortedComments.length === 0 ? (
           <p>No comments yet.</p>
         ) : (
-          post.comments
-            .slice()
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .map((comment) => (
+          sortedComments.map((comment) => (
             <CommentItem
               key={comment._id}
               comment={comment}
               user={user}
               postId={postId}
               depth={0}
-              setMessage={setMessage}
+              showMessage={showMessage}
               onReload={loadPost}
             />
-            ))
+          ))
         )}
       </div>
     </main>

@@ -6,14 +6,47 @@ import User from "../models/User.js";
 import { requireAdmin, requireLogin } from "../middleware/auth.js";
 import { deleteUserCascade } from "../utils/cascadeDelete.js";
 import { attachPostStats } from "../utils/postStats.js";
-import { presentVotable } from "../utils/voting.js";
 
 const router = express.Router();
 
-router.get("/me", requireLogin, async (req, res) => {
-  return res.json({
-    user: req.currentUser
-  });
+// Public profile: safe subset of a user's identity and activity, so
+// display names around the app can link somewhere. No email, no saved posts.
+router.get("/:id/public", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id).select(
+      "displayName reputation createdAt"
+    );
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const [posts, comments] = await Promise.all([
+      Post.find({ postedBy: user._id })
+        .select("title community createdAt upvotes downvotes")
+        .populate("community", "name")
+        .sort({ createdAt: -1 })
+        .limit(30),
+      Comment.find({ commentedBy: user._id })
+        .select("content post createdAt upvotes downvotes")
+        .populate("post", "title")
+        .sort({ createdAt: -1 })
+        .limit(30)
+    ]);
+
+    return res.json({
+      user,
+      posts,
+      comments: comments.map((comment) => {
+        const plain = comment.toObject();
+        if (plain.content.length > 200) {
+          plain.content = `${plain.content.slice(0, 200)}...`;
+        }
+        return plain;
+      })
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.get("/", requireLogin, requireAdmin, async (_req, res, next) => {
@@ -110,8 +143,8 @@ router.get("/:id/profile-content", requireLogin, async (req, res, next) => {
     return res.json({
       user,
       communities,
-      posts: posts.map((post) => presentVotable(post)),
-      comments: comments.map((comment) => presentVotable(comment)),
+      posts,
+      comments,
       savedPosts: await attachPostStats(savedPosts)
     });
   } catch (error) {

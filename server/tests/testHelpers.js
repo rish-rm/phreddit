@@ -7,8 +7,6 @@ import Post from "../models/Post.js";
 import Report from "../models/Report.js";
 import User from "../models/User.js";
 
-process.env.NODE_ENV = "test";
-
 function uniqueMongoUri(baseUri) {
   const fallbackDbName = "phreddit_test";
   const suffix = `${process.pid}_${Math.random().toString(36).slice(2, 8)}`;
@@ -31,6 +29,16 @@ export async function connectTestDb() {
   if (mongoose.connection.readyState === 0) {
     await mongoose.connect(TEST_MONGO_URI);
   }
+  // Build all declared indexes up front so $text queries and partial unique
+  // indexes behave deterministically inside tests.
+  await Promise.all([
+    User.init(),
+    Community.init(),
+    Post.init(),
+    Comment.init(),
+    LinkFlair.init(),
+    Report.init()
+  ]);
 }
 
 export async function clearTestDb() {

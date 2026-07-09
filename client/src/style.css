@@ -546,3 +546,107 @@ form label,
     margin-left: 0 !important;
   }
 }
+
+/* --- Toast tones --- */
+.message--success {
+  background: #e6f6ea;
+  border-color: #2f9e44;
+  color: #1b5e2c;
+}
+
+.message--error {
+  background: #fdecec;
+  border-color: #d64545;
+  color: #8a1f1f;
+}
+
+/* --- Confirm dialog --- */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.dialog {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  width: min(440px, 92vw);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.3);
+}
+
+.dialog h3 {
+  margin-top: 0;
+}
+
+.dialog-note {
+  display: block;
+  margin: 12px 0;
+  font-weight: 600;
+}
+
+.dialog-note textarea {
+  display: block;
+  width: 100%;
+  min-height: 70px;
+  margin-top: 6px;
+  font-weight: 400;
+}
+
+/* --- Vote buttons --- */
+.vote-btn[aria-pressed="true"],
+.vote-btn.active {
+  border-color: #1d4ed8;
+  background: #e3ecfd;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.vote-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* --- Rendered markdown --- */
+.rich-text p {
+  margin: 6px 0;
+}
+
+.rich-text p:first-child {
+  margin-top: 0;
+}
+
+.rich-text pre {
+  background: #f1f5f9;
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.rich-text code {
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+
+.rich-text blockquote {
+  border-left: 3px solid #cbd5e1;
+  margin: 8px 0;
+  padding-left: 10px;
+  color: #475569;
+}
+
+.rich-text ul,
+.rich-text ol {
+  margin: 6px 0;
+  padding-left: 22px;
+}
+
+.rich-text a {
+  color: #1d4ed8;
+}

@@ -1,9 +1,12 @@
+import http from "node:http";
 import MongoStore from "connect-mongo";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import helmet from "helmet";
 import session from "express-session";
 import mongoose from "mongoose";
+import { Server as SocketIOServer } from "socket.io";
 import authRoutes from "./routes/authRoutes.js";
 import commentRoutes from "./routes/commentRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
@@ -12,23 +15,30 @@ import postRoutes from "./routes/postRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import { attachCurrentUser } from "./middleware/auth.js";
+import { setIo } from "./realtime.js";
 
 dotenv.config();
 
 export const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/phreddit";
 export const PORT = Number(process.env.PORT || 8000);
 
-export function createApp({ useSessionStore = true } = {}) {
-  const app = express();
+export function getAllowedOrigins() {
   const configuredOrigins = (process.env.CLIENT_ORIGIN || "")
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
-  const allowedOrigins = new Set([
+  return new Set([
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     ...configuredOrigins
   ]);
+}
+
+export function createApp({ useSessionStore = true } = {}) {
+  const app = express();
+  const allowedOrigins = getAllowedOrigins();
+
+  app.use(helmet());
 
   app.use(
     cors({
@@ -50,7 +60,7 @@ export function createApp({ useSessionStore = true } = {}) {
   const cookieSecure =
     process.env.SESSION_COOKIE_SECURE === "true" || cookieSameSite === "none";
 
-  if (cookieSecure) {
+  if (cookieSecure || process.env.TRUST_PROXY === "true") {
     app.set("trust proxy", 1);
   }
 
@@ -91,10 +101,18 @@ export function createApp({ useSessionStore = true } = {}) {
   });
 
   app.use((error, _req, res, _next) => {
-    const status = error.status || (error.name === "CastError" ? 400 : 500);
-    const message = error.name === "CastError"
-      ? "Invalid resource id."
-      : error.message || "Internal server error.";
+    let status = error.status || 500;
+    let message = error.message || "Internal server error.";
+
+    if (error.name === "CastError") {
+      status = 400;
+      message = "Invalid resource id.";
+    } else if (error.name === "ValidationError") {
+      status = 400;
+      message = Object.values(error.errors || {})
+        .map((detail) => detail.message)
+        .join(" ") || "Invalid input.";
+    }
 
     if (status >= 500) {
       console.error(error);
@@ -111,7 +129,31 @@ export function createApp({ useSessionStore = true } = {}) {
 export async function startServer() {
   await mongoose.connect(MONGO_URI);
   const app = createApp();
-  return app.listen(PORT, () => {
+  const server = http.createServer(app);
+
+  const io = new SocketIOServer(server, {
+    cors: {
+      origin: [...getAllowedOrigins()],
+      credentials: true
+    }
+  });
+
+  io.on("connection", (socket) => {
+    socket.on("post:join", (postId) => {
+      if (typeof postId === "string" && postId.length <= 40) {
+        socket.join(`post:${postId}`);
+      }
+    });
+    socket.on("post:leave", (postId) => {
+      if (typeof postId === "string") {
+        socket.leave(`post:${postId}`);
+      }
+    });
+  });
+
+  setIo(io);
+
+  return server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
 }

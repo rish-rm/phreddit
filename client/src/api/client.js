@@ -64,6 +64,9 @@ export const api = {
     if (params.community) query.set("community", params.community);
     if (params.linkFlair) query.set("linkFlair", params.linkFlair);
     if (params.search) query.set("search", params.search);
+    if (params.sort) query.set("sort", params.sort);
+    if (params.page) query.set("page", String(params.page));
+    if (params.limit) query.set("limit", String(params.limit));
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return request(`/posts${suffix}`);
   },
@@ -73,12 +76,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body)
     }),
-  getPost: (id, options = {}) => {
-    const query = new URLSearchParams();
-    if (options.incrementView === false) query.set("incrementView", "false");
-    const suffix = query.toString() ? `?${query.toString()}` : "";
-    return request(`/posts/${id}${suffix}`);
-  },
+  getPost: (id) => request(`/posts/${id}`),
+  viewPost: (id) =>
+    request(`/posts/${id}/view`, {
+      method: "POST"
+    }),
   createPost: (body) =>
     request("/posts", {
       method: "POST",
@@ -142,6 +144,7 @@ export const api = {
       body: JSON.stringify(body)
     }),
   getProfileContent: (id) => request(`/users/${id}/profile-content`),
+  getPublicProfile: (id) => request(`/users/${id}/public`),
   listUsers: () => request("/users"),
   deleteUser: (id) =>
     request(`/users/${id}`, {

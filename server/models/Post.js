@@ -67,5 +67,7 @@ const postSchema = new mongoose.Schema(
 );
 
 postSchema.index({ title: "text", content: "text" });
+postSchema.index({ community: 1, createdAt: -1 });
+postSchema.index({ createdAt: -1, _id: -1 });
 
 export default mongoose.model("Post", postSchema);

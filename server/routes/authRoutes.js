@@ -6,6 +6,13 @@ import { validateRegistrationInput } from "../utils/validation.js";
 
 const router = express.Router();
 
+// Regenerating the session id on privilege change prevents session fixation.
+function regenerateSession(req) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((error) => (error ? reject(error) : resolve()));
+  });
+}
+
 router.post("/register", authRateLimiter, async (req, res, next) => {
   try {
     const validation = validateRegistrationInput(req.body);
@@ -42,6 +49,10 @@ router.post("/register", authRateLimiter, async (req, res, next) => {
       isAdmin: false
     });
 
+    // Log the new account in immediately.
+    await regenerateSession(req);
+    req.session.userId = String(user._id);
+
     return res.status(201).json({
       message: "Account created successfully.",
       user
@@ -70,18 +81,12 @@ router.post("/login", authRateLimiter, async (req, res, next) => {
       });
     }
 
-    return req.session.regenerate((sessionError) => {
-      if (sessionError) {
-        next(sessionError);
-        return;
-      }
+    await regenerateSession(req);
+    req.session.userId = String(user._id);
 
-      req.session.userId = String(user._id);
-
-      res.json({
-        message: "Logged in successfully.",
-        user
-      });
+    return res.json({
+      message: "Logged in successfully.",
+      user
     });
   } catch (error) {
     next(error);

@@ -1,10 +1,14 @@
 # Phreddit
 
-[![CI](https://github.com/rish-rm/phreddit/actions/workflows/ci.yml/badge.svg)](https://github.com/rish-rm/phreddit/actions/workflows/ci.yml)
+[![CI](https://github.com/YOUR_GITHUB_USERNAME/phreddit/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/phreddit/actions)
+<!-- TODO: replace YOUR_GITHUB_USERNAME above after pushing -->
 
-Phreddit is a full-stack Reddit-inspired community forum built with React, Express, MongoDB, and Mongoose. It supports guest browsing, session-based accounts, communities, posts, link flair, threaded comments, saved posts, reputation-aware voting, user reporting, profile management, and admin moderation flows.
+Phreddit is a full-stack Reddit-inspired community forum built with React, Express, MongoDB, and Mongoose. It supports guest browsing, session-based accounts, communities, posts, link flair, unbounded-depth threaded comments, saved posts, toggleable reputation-aware voting, live post updates over WebSockets, Markdown rendering, public user profiles, reporting, and admin moderation flows.
 
-The project is structured as a portfolio-ready MERN application with a polished responsive UI, isolated backend integration tests, and Playwright coverage for core browser workflows.
+The project is structured as a portfolio-ready MERN application with client-side routing, server-side pagination and sorting, isolated backend integration tests, client unit tests, Playwright e2e coverage, and a CI pipeline.
+
+**Live demo:** _deploying — link coming soon_ <!-- TODO: deploy per the Deployment section, then put the Vercel URL here -->
+Demo login: `demo@example.com` / `DemoPass123!` (created by the seed script).
 
 ## Screenshots
 
@@ -14,219 +18,188 @@ The project is structured as a portfolio-ready MERN application with a polished 
 
 ## Features
 
-- Guest browsing plus registration, login, logout, and persisted sessions
-- Persistent app banner and sidebar navigation across main app views
-- Community creation, membership, listings, and joined-community prioritization
-- Post creation, editing, deletion, flair display, flair filtering, and search
-- Newest, Oldest, and Active sorting, with Active based on latest comment activity
-- Threaded comments and replies with unbounded server-side tree building
-- Post/comment voting with reputation restrictions, self-vote protection, and vote toggle/switch behavior
+- Guest browsing plus registration (with immediate login), login, logout, and persisted sessions
+- Client-side routing with real URLs and deep links (`/posts/:id`, `/communities/:id`, `/users/:id`, `/search?q=...`)
+- Live post pages: comments, votes, and edits from other users appear in real time over Socket.IO
+- Server-side pagination and sorting (Newest, Oldest, Active) with a Load More UI
+- Full-text search across post titles, content, and comments using MongoDB text indexes
+- Toggleable voting: vote, unvote, or switch votes with atomic database updates; no self-voting; reputation deltas reverse correctly
+- Unbounded-depth threaded comments assembled from a single indexed query, with Newest/Top comment sorting
+- Markdown post and comment bodies, sanitized with DOMPurify before rendering
+- Public user profiles showing display name, reputation, and recent activity (no private data)
 - Saved posts/bookmarks with a dedicated profile tab
-- Post reporting with duplicate-report protection and an admin moderation queue
-- Admin report resolution through dismissal or content removal
-- User profiles for posts, comments, and communities with edit/delete controls
-- Admin user list, acting as another user's profile, and cascade user deletion
+- Post reporting with duplicate-report protection, an admin moderation queue, and optional resolution notes
+- Admin user list, viewing another user's profile, and cascade user deletion behind an accessible confirm dialog
 - Cascade deletion for communities, posts, comments, replies, and user-owned content
-- In-memory auth rate limiting for login/register abuse prevention
-- Responsive layout, keyboard-visible focus states, empty/loading/error states
-- Unit, integration, and Playwright e2e tests
+- Session hardening: session ID regeneration on login/registration, 8+ character passwords, helmet security headers, CORS allowlist, auth rate limiting
+- Responsive layout, keyboard-visible focus states, loading/empty/error states, and toast notifications with distinct success/error styling
+- Unit (server + client), integration, and Playwright e2e tests, run in GitHub Actions CI
 
 ## Tech Stack
 
-- React 18 and Vite
-- Express 4
-- MongoDB and Mongoose
-- bcrypt password hashing
-- express-session with optional Mongo-backed session store
-- Node test runner, Supertest, ESLint
-- Playwright for browser e2e tests
+- **Client:** React 18, Vite, react-router-dom, socket.io-client, marked + DOMPurify, Vitest + React Testing Library, Playwright
+- **Server:** Node.js, Express 4, Socket.IO, Mongoose 8, express-session + connect-mongo, bcrypt, helmet
+- **Database:** MongoDB (text indexes for search, compound indexes for listings)
 
 ## Project Structure
 
-```text
+```
 phreddit/
-├── .github/workflows/      # CI for lint, build, unit, integration, and e2e checks
-├── client/
-│   ├── e2e/                 # Playwright browser tests
-│   ├── public/
-│   └── src/
-│       ├── api/             # Fetch wrapper and API contracts
-│       ├── components/      # Shared shell, navigation, cards, comments
-│       ├── pages/           # App views
-│       └── utils/           # Formatting and post sorting/count helpers
-├── images/
-│   ├── screenshots/         # README screenshots
-│   └── *.png                # Architecture diagrams
+├── client/               # React app (Vite)
+│   ├── src/
+│   │   ├── api/          # fetch wrapper for the REST API
+│   │   ├── components/   # Banner, PostCard, CommentItem, ConfirmDialog, RichText, ...
+│   │   ├── pages/        # routed pages (Home, Post, Community, Profile, UserProfile, ...)
+│   │   ├── realtime.js   # Socket.IO subscription helper
+│   │   └── utils/        # formatting + post/comment helpers (unit tested)
+│   └── e2e/              # Playwright specs
 ├── server/
-│   ├── middleware/          # Auth/session helpers
-│   ├── models/              # Mongoose schemas
-│   ├── routes/              # Express API routes
-│   ├── tests/               # Unit and integration tests
-│   ├── utils/               # Validation, voting, cascade deletion, stats
-│   ├── init.js              # Seed/admin initialization script
-│   └── server.js            # App factory and server entrypoint
-├── package.json             # Root convenience scripts
-└── README.md
+│   ├── bench/            # autocannon benchmark + volume seeder
+│   ├── middleware/        # auth, rate limiting
+│   ├── models/           # Mongoose schemas + indexes
+│   ├── routes/           # REST endpoints
+│   ├── tests/            # node:test unit + integration suites
+│   ├── utils/            # voting, serialization, validation, cascade deletes
+│   ├── realtime.js       # Socket.IO emit wrapper
+│   └── server.js         # app factory + HTTP/Socket.IO bootstrap
+├── .github/workflows/ci.yml
+├── AGENTS.md             # commands + invariants for AI coding agents
+├── render.yaml           # Render blueprint for the API
+└── vercel.json           # Vercel config for the client
 ```
 
 ## Setup
 
-Requirements:
-
-- Node.js 20.19 or newer
-- npm
-- MongoDB running locally
-
-Install dependencies from the repo root:
+Requirements: Node.js 20+ and a local MongoDB (or Atlas connection string).
 
 ```bash
+# 1) Install dependencies
 npm run install:all
-```
 
-Create optional environment files:
+# 2) Configure the server
+cp server/.env.example server/.env   # edit values as needed
 
-```bash
-cp server/.env.example server/.env
-cp client/.env.example client/.env
-```
+# 3) (Optional) seed demo data — pass your admin credentials as arguments
+node server/init.js admin@example.com adminuser AdminPass123!
 
-Initialize the database with an admin user and demo content:
+# 4) Run the API (http://localhost:8000)
+npm --prefix server run dev
 
-```bash
-MONGO_URI=mongodb://127.0.0.1:27017/phreddit \
-  node server/init.js admin@example.com adminUser AdminPass123!
-```
-
-Start the backend:
-
-```bash
-npm --prefix server start
-```
-
-Start the frontend in another terminal:
-
-```bash
+# 5) Run the client (http://localhost:5173) in another terminal
 npm --prefix client run dev
 ```
 
-Open `http://127.0.0.1:5173`.
+The Vite dev server proxies both `/api` and the `/socket.io` WebSocket to the API, so no client env vars are needed locally.
 
 ## Demo Accounts
 
-The seed script creates the admin account from the command line:
+`node server/init.js <adminEmail> <adminDisplayName> <adminPassword>` seeds sample communities, posts, and comments, creates an admin with the credentials you pass, and always creates:
 
-- Email: `admin@example.com`
-- Display name: `adminUser`
-- Password: `AdminPass123!`
-
-It also creates demo users with the password `DemoPass123!`:
-
-- `alex@example.com`
-- `jamie@example.com`
-- `taylor@example.com`
+| Role | Email              | Password       |
+|------|--------------------|----------------|
+| User | `demo@example.com` | `DemoPass123!` |
 
 ## Environment Variables
 
-Server:
+Server (`server/.env`):
 
-- `MONGO_URI`: MongoDB connection string. Defaults to `mongodb://127.0.0.1:27017/phreddit`.
-- `PORT`: API port. Defaults to `8000`.
-- `SESSION_SECRET`: Secret used by `express-session`.
-- `CLIENT_ORIGIN`: Comma-separated allowed browser origins for CORS.
-- `SESSION_COOKIE_SAMESITE`: Cookie SameSite mode. Defaults to `lax`.
-- `SESSION_COOKIE_SECURE`: Set to `true` for HTTPS cookie delivery.
-- `JSON_BODY_LIMIT`: Express JSON body limit. Defaults to `1mb`.
-- `AUTH_RATE_LIMIT_WINDOW_MS`: Login/register rate-limit window. Defaults to 15 minutes.
-- `AUTH_RATE_LIMIT_MAX`: Login/register attempts per window. Defaults to `20`.
-- `DISABLE_RATE_LIMIT`: Set to `true` only for trusted local/debug scenarios.
-- `ENABLE_TEST_AUTH_HEADER`: Set to `true` only in a trusted test harness to accept `x-test-user-id`; production should leave this unset.
+| Variable | Purpose | Default |
+|---|---|---|
+| `MONGO_URI` | MongoDB connection string | `mongodb://127.0.0.1:27017/phreddit` |
+| `PORT` | API port | `8000` |
+| `SESSION_SECRET` | Session signing secret (set a long random value) | dev fallback |
+| `CLIENT_ORIGIN` | Comma-separated allowed CORS origins | localhost:5173 |
+| `SESSION_COOKIE_SAMESITE` | `lax` locally, `none` for cross-site prod | `lax` |
+| `SESSION_COOKIE_SECURE` | `true` in production (HTTPS) | `false` |
+| `TRUST_PROXY` | `true` behind a reverse proxy (Render, etc.) | `false` |
+| `JSON_BODY_LIMIT` | Request body size cap | `1mb` |
+| `AUTH_RATE_LIMIT_*`, `DISABLE_RATE_LIMIT` | Login/register rate limiting | see `.env.example` |
 
-Client:
+Client (`client/.env`):
 
-- `VITE_API_BASE_URL`: Optional API base URL. Local development normally uses the Vite `/api` proxy.
+| Variable | Purpose |
+|---|---|
+| `VITE_API_BASE_URL` | API base URL in production (e.g. `https://phreddit-api.onrender.com/api`). Socket.IO uses the same origin. Leave unset in dev. |
 
-Testing:
-
-- `TEST_MONGO_URI`: Base MongoDB URI for integration tests. Each test process derives a unique database name from this URI.
-- `E2E_MONGO_URI`: MongoDB URI used by the Playwright web-server setup.
-
-## Deployment
-
-The frontend can deploy to Vercel from the repository root. `vercel.json` installs the `client` package, builds the Vite app, serves `client/dist`, and rewrites client-side routes to `index.html`.
-
-For a fully working public app, deploy the API and database separately:
-
-- MongoDB Atlas or another hosted MongoDB provider for `MONGO_URI`
-- A Node web service for `server/` with build command `npm ci` and start command `npm start`
-- Vercel environment variable `VITE_API_BASE_URL=https://your-api.example.com/api`
-- API environment variables `CLIENT_ORIGIN=https://your-vercel-app.vercel.app`, `SESSION_COOKIE_SAMESITE=none`, `SESSION_COOKIE_SECURE=true`, and a strong `SESSION_SECRET`
+`NODE_ENV=test` (set automatically by the test scripts) enables a test-only `x-test-user-id` auth header used by the integration suite. It is inert in any other environment.
 
 ## Scripts
 
-From the repo root:
+Root convenience scripts:
+
+| Script | What it does |
+|---|---|
+| `npm run install:all` | `npm ci` in both `server/` and `client/` |
+| `npm run lint` | ESLint for server and client |
+| `npm run test:unit` | Server unit tests (node:test) + client unit tests (Vitest) |
+| `npm run test:int` | Server integration tests (needs MongoDB; uses a disposable database) |
+| `npm run test:e2e` | Playwright end-to-end tests (boots API + client; needs MongoDB) |
+| `npm run build` | Production client build |
+
+Server extras: `npm --prefix server run bench:seed` (seed ~2,000 posts into a bench database) and `npm --prefix server run bench` (autocannon load test against the paginated listing endpoint).
+
+## Testing
+
+| Suite | Command | Needs MongoDB | CI job |
+|---|---|---|---|
+| Server unit (node:test) | `npm --prefix server run test:unit` | No | lint-and-unit |
+| Client unit (Vitest + RTL) | `npm --prefix client run test:unit` | No | lint-and-unit |
+| Server integration (supertest, disposable DB per file) | `npm run test:int` | Yes | integration |
+| End-to-end (Playwright, boots API + client) | `npm run test:e2e` | Yes | e2e |
+
+Integration tests spin up the Express app in-process against a throwaway database, so they're safe to run repeatedly. The e2e suite registers two users to exercise both the self-vote gate and the full vote/unvote/switch lifecycle.
+
+Contributing with an AI coding agent? Repo commands and invariants live in [AGENTS.md](AGENTS.md).
+
+## Benchmarks
+
+To produce a defensible throughput/latency number for the listing endpoint:
 
 ```bash
-npm run install:all
-npm run lint
-npm run lint:server
-npm run lint:client
-npm run build
-npm run test:unit
-npm run test:int
-npm run test:e2e
+# Terminal 1 — seed and serve a volume dataset
+MONGO_URI=mongodb://127.0.0.1:27017/phreddit_bench npm --prefix server run bench:seed
+MONGO_URI=mongodb://127.0.0.1:27017/phreddit_bench npm --prefix server start
+
+# Terminal 2 — run the load test (50 connections, 15s by default)
+npm --prefix server run bench
 ```
 
-Equivalent package-level commands:
+Record the reported req/s and p97.5/p99 latency, and cite them with the machine/dataset used. Results depend on hardware; measure before quoting numbers.
 
-```bash
-npm --prefix server run lint
-npm --prefix server run test:unit
-npm --prefix server run test:int
-npm --prefix client run lint
-npm --prefix client run build
-npm --prefix client run test:e2e
-```
+## Deployment
 
-For integration and e2e tests, run MongoDB first. Example with an isolated local MongoDB instance:
+The client and API deploy separately.
 
-```bash
-mongod --dbpath /tmp/phreddit-mongo --port 27028 --bind_ip 127.0.0.1
-TEST_MONGO_URI=mongodb://127.0.0.1:27028/phreddit_int npm run test:int
-E2E_MONGO_URI=mongodb://127.0.0.1:27028/phreddit_e2e npm run test:e2e
-```
+**Database — MongoDB Atlas (free M0):**
+1. Create a cluster, a database user, and allow access from `0.0.0.0/0` (or Render's IPs).
+2. Copy the connection string; this is `MONGO_URI`.
+
+**API — Render (free):**
+1. Push this repo to GitHub, then in Render choose **New → Blueprint** and select the repo (`render.yaml` configures the service).
+2. Set `MONGO_URI` to the Atlas string and `CLIENT_ORIGIN` to your Vercel URL (e.g. `https://phreddit.vercel.app`). The blueprint already sets `SESSION_COOKIE_SAMESITE=none`, `SESSION_COOKIE_SECURE=true`, and `TRUST_PROXY=true` for cross-site cookies.
+3. Verify `https://<api>.onrender.com/api/health` returns `{ "ok": true }`, then run `node server/init.js <adminEmail> <adminName> <adminPassword>` locally with `MONGO_URI` pointed at Atlas to seed demo data.
+
+**Client — Vercel (free):**
+1. Import the repo into Vercel; `vercel.json` handles the build and SPA rewrites (needed for deep links with client-side routing).
+2. Add the env var `VITE_API_BASE_URL=https://<api>.onrender.com/api` and deploy.
+3. Update the Live demo link at the top of this README.
 
 ## Architecture Notes
 
-- `server/server.js` exports `createApp()` for testability and `startServer()` for normal runtime startup.
-- Test auth can inject `x-test-user-id` only when `NODE_ENV=test` or `ENABLE_TEST_AUTH_HEADER=true`; production auth uses session cookies.
-- Post listings use `server/utils/postStats.js` to attach recursive `commentCount` and `latestCommentAt` without relying on partially populated comments.
-- Post detail loads comments with one flat query and rebuilds the reply tree in `server/utils/commentTree.js`, so deeply nested threads do not disappear at an arbitrary populate depth.
-- Vote responses expose `userVote` for the current session while keeping raw `votedBy` voter lists out of API payloads.
-- Frontend Active sort keeps posts with comment activity above empty posts and sorts by latest comment/reply timestamp.
-- Saved posts are modeled as user-to-post references and returned through profile content instead of duplicating post snapshots.
-- Reports are first-class documents with a pending/resolved lifecycle, reporter identity, admin resolution metadata, and duplicate-pending-report protection.
-- Admin moderation deletion reuses the same cascade deletion helper as ordinary post deletion, keeping cleanup behavior consistent across code paths.
-- Login/register use a dependency-free memory rate limiter suitable for a single-node demo; a Redis-backed store would be the production scaling path.
-- Deletion helpers recursively remove comments/replies and clean references from users, posts, and communities.
-- User deletion also removes that user's vote records and corrects stored vote totals.
-- Playwright starts the client and server automatically, runs with one worker, and uses unique test data to avoid cross-test interference.
+- **App factory:** `createApp()` builds the Express app without binding a port, so integration tests run against an in-process app with a disposable database per test file. `startServer()` wraps it in an HTTP server and attaches Socket.IO.
+- **Realtime:** route handlers publish through a small `realtime.js` wrapper (`emitPostUpdated`). Clients on a post page join a `post:<id>` room and refetch on updates — an invalidation-style design that stays correct without duplicating server state on the client.
+- **Voting:** vote add/remove/switch are single conditional `findOneAndUpdate` operations, so concurrent requests cannot double-count. `votedBy` is never sent to clients; each response carries only the caller's own `userVote`.
+- **Comments:** fetched flat with one indexed query (`{ post: 1, createdAt: -1 }`) and assembled into a tree in memory — no depth limit, unlike nested populate.
+- **Search:** MongoDB text indexes on posts and comments; matching ids are resolved first because `$text` cannot appear inside `$or`.
+- **Listings:** pagination and all three sorts are computed database-side; "Active" uses an aggregation with a comments `$lookup`. Page-number pagination is intentional at this scale; cursor pagination is the documented next step if feeds grow unbounded.
+- **Sessions:** stored in MongoDB via connect-mongo; the session ID is regenerated on login and registration to prevent fixation. The `x-test-user-id` test header is compiled out of every environment except `NODE_ENV=test`.
+- **Cascade deletes** run children-first and are idempotent. Multi-document transactions (Atlas replica sets) are the production path for strict atomicity and are intentionally not required for local single-node MongoDB.
+- **Markdown** is rendered client-side with `marked` and sanitized with DOMPurify (scripts, event handlers, and `javascript:` URLs are stripped; links open in a new tab with `rel="noopener"`).
 
 ## Portfolio Talking Points
 
-- **Product thinking:** Phreddit goes beyond CRUD with saved posts, reporting, admin review, reputation-aware voting, and joined-community prioritization.
-- **Scalable data shape:** Posts, comments, reports, communities, users, and link flairs are normalized Mongoose models with explicit reference cleanup.
-- **Authorization:** Ownership checks protect edit/delete flows, admins get elevated review/user-management capabilities, and guests stay read-only.
-- **Reliability:** GitHub Actions runs lint, build, unit, integration, and e2e checks; integration tests use isolated MongoDB names per process, while Playwright runs serialized against dedicated e2e data.
-- **Security:** Passwords are hashed with bcrypt, login regenerates sessions, session cookies are HTTP-only, CORS is allowlisted, input is validated, auth endpoints are rate limited, and test-only auth headers are gated away from production.
-- **Accessibility/UI:** The app uses persistent navigation, semantic buttons/forms/tabs, visible focus states, responsive layout, and clear empty/error states.
-
-## Repository Hygiene
-
-The `.gitignore` excludes dependency folders, build output, test artifacts, environment files, database files, spreadsheets, archives, and local OS files. Do not commit:
-
-- `node_modules/`
-- `client/dist/`
-- `.env`, `.env.local`, `.env.test`
-- `test-results/`, `playwright-report/`
-- local MongoDB data
-- temporary archives or grading spreadsheets
+- Migrated a state-machine UI to client-side routing with deep links, then moved sorting/pagination server-side so URLs, refreshes, and shared links all behave correctly.
+- Designed race-safe vote toggling with pure conditional updates instead of read-modify-write, and verified the reputation math with integration tests.
+- Replaced depth-limited nested populate with a flat fetch + in-memory tree build, turning N populate queries into one indexed query.
+- Added Socket.IO live updates with a no-op-in-tests emitter so the realtime layer never leaks into the test suite.
+- Closed a test-only auth header behind `NODE_ENV=test` after identifying it as a production auth bypass during a security review.
