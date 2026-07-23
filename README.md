@@ -109,6 +109,7 @@ Server (`server/.env`):
 | `PORT` | API port | `8000` |
 | `SESSION_SECRET` | Session signing secret (set a long random value) | dev fallback |
 | `CLIENT_ORIGIN` | Comma-separated allowed CORS origins | localhost:5173 |
+| `ADMIN_EMAIL` | Existing account to promote as the production owner at startup | unset |
 | `SESSION_COOKIE_SAMESITE` | `lax` locally, `none` for cross-site prod | `lax` |
 | `SESSION_COOKIE_SECURE` | `true` in production (HTTPS) | `false` |
 | `TRUST_PROXY` | `true` behind a reverse proxy (Render, etc.) | `false` |
@@ -177,7 +178,8 @@ The client and API deploy separately.
 **API — Render (free):**
 1. Push this repo to GitHub, then in Render choose **New → Blueprint** and select the repo (`render.yaml` configures the service).
 2. Set `MONGO_URI` to the Atlas string and `CLIENT_ORIGIN` to your Vercel URL (e.g. `https://phreddit.vercel.app`). The blueprint already sets `SESSION_COOKIE_SAMESITE=none`, `SESSION_COOKIE_SECURE=true`, and `TRUST_PROXY=true` for cross-site cookies.
-3. Verify `https://<api>.onrender.com/api/health` returns `{ "ok": true }`, then run `node server/init.js <adminEmail> <adminName> <adminPassword>` locally with `MONGO_URI` pointed at Atlas to seed demo data.
+3. Verify `https://<api>.onrender.com/api/health` returns `{ "ok": true }`. Register the production owner through the app, set `ADMIN_EMAIL` to that existing account, and redeploy once; startup promotes it without storing or resetting its password.
+4. To replace an empty database with the complete local demo dataset instead, run `node server/init.js <adminEmail> <adminName> <adminPassword>` locally with `MONGO_URI` pointed at Atlas. This command intentionally clears existing Phreddit data first.
 
 **Client — Vercel (free):**
 1. Import the repo into Vercel; `vercel.json` handles the build and SPA rewrites (needed for deep links with client-side routing).

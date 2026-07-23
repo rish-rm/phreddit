@@ -16,6 +16,7 @@ import reportRoutes from "./routes/reportRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import { attachCurrentUser } from "./middleware/auth.js";
 import { setIo } from "./realtime.js";
+import { ensureConfiguredAdmin } from "./utils/adminBootstrap.js";
 
 dotenv.config();
 
@@ -135,6 +136,13 @@ export function createApp({ useSessionStore = true } = {}) {
 
 export async function startServer() {
   await mongoose.connect(MONGO_URI);
+  const adminBootstrap = await ensureConfiguredAdmin();
+  if (adminBootstrap.configured) {
+    console.log("Configured the ADMIN_EMAIL account as an administrator.");
+  } else if (adminBootstrap.reason === "not-found") {
+    console.warn("ADMIN_EMAIL does not match an existing account yet.");
+  }
+
   const app = createApp();
   const server = http.createServer(app);
 
