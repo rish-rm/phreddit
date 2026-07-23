@@ -118,8 +118,9 @@ test("core flows: content creation, self-vote gate, sorting, profile, and two-us
   await expect(page.locator(".row-card").filter({ hasText: editedTitle })).toBeVisible();
 
   await page.getByRole("tab", { name: /comments/i }).click();
-  await expect(page.locator(".row-card").filter({ hasText: commentText })).toBeVisible();
-  await page.locator(".row-card").filter({ hasText: commentText }).getByRole("button", { name: /delete/i }).click();
+  const commentRow = page.locator(".row-card").filter({ hasText: commentText.slice(0, 20) });
+  await expect(commentRow).toBeVisible();
+  await commentRow.getByRole("button", { name: /delete/i }).click();
   await page.getByRole("dialog").getByRole("button", { name: /^confirm$/i }).click();
   await expect(page.getByText("No comments yet.")).toBeVisible();
 
