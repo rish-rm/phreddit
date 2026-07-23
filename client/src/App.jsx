@@ -81,14 +81,16 @@ export default function App() {
     setRefreshToken((current) => current + 1);
   }, []);
 
-  const refreshCurrentUser = useCallback(() => {
-    api
-      .me()
-      .then((data) => {
-        setUser(data.user);
-        refreshData();
-      })
-      .catch((error) => showMessage(error.message, "error"));
+  const refreshCurrentUser = useCallback(async () => {
+    try {
+      const data = await api.me();
+      setUser(data.user);
+      refreshData();
+      return data.user;
+    } catch (error) {
+      showMessage(error.message, "error");
+      return null;
+    }
   }, [refreshData, showMessage]);
 
   async function logout() {

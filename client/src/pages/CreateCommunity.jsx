@@ -3,7 +3,7 @@ import { useNavigate, useOutletContext } from "react-router-dom";
 import { api } from "../api/client.js";
 
 export default function CreateCommunity() {
-  const { user, showMessage, refreshData } = useOutletContext();
+  const { user, showMessage, refreshCurrentUser } = useOutletContext();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
@@ -26,7 +26,7 @@ export default function CreateCommunity() {
     try {
       setSubmitting(true);
       const data = await api.createCommunity(form);
-      refreshData();
+      await refreshCurrentUser();
       showMessage("Community created successfully.", "success");
       const newId = data.community?._id;
       navigate(newId ? `/communities/${newId}` : "/home");
