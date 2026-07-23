@@ -64,8 +64,7 @@ phreddit/
 │   └── server.js         # app factory + HTTP/Socket.IO bootstrap
 ├── .github/workflows/ci.yml
 ├── AGENTS.md             # commands + invariants for AI coding agents
-├── render.yaml           # Optional Render blueprint for the API
-├── server/railway.json   # Railway build, health-check, and restart policy
+├── render.yaml           # Render blueprint for the API
 └── vercel.json           # Vercel config for the client
 ```
 
@@ -112,7 +111,7 @@ Server (`server/.env`):
 | `CLIENT_ORIGIN` | Comma-separated allowed CORS origins | localhost:5173 |
 | `SESSION_COOKIE_SAMESITE` | `lax` locally, `none` for cross-site prod | `lax` |
 | `SESSION_COOKIE_SECURE` | `true` in production (HTTPS) | `false` |
-| `TRUST_PROXY` | `true` behind a reverse proxy (Railway, Render, etc.) | `false` |
+| `TRUST_PROXY` | `true` behind a reverse proxy (Render, etc.) | `false` |
 | `JSON_BODY_LIMIT` | Request body size cap | `1mb` |
 | `AUTH_RATE_LIMIT_*`, `DISABLE_RATE_LIMIT` | Login/register rate limiting | see `.env.example` |
 
@@ -172,19 +171,17 @@ Record the reported req/s and p97.5/p99 latency, and cite them with the machine/
 The client and API deploy separately.
 
 **Database — MongoDB Atlas (free M0):**
-1. Create a cluster, a database user, and allow access from the API host. Free hosts with dynamic outbound IPs may require `0.0.0.0/0`; use a strong database password and a least-privilege application user.
+1. Create a cluster, a database user, and allow access from `0.0.0.0/0` (or Render's IPs).
 2. Copy the connection string; this is `MONGO_URI`.
 
-**API — Railway:**
-1. In Railway, choose **New Project → Deploy from GitHub repo**, select this repo, and set the service root directory to `/server`. `server/railway.json` configures the build, start command, health check, and restart policy.
-2. Add `MONGO_URI`, `CLIENT_ORIGIN` (for example `https://phreddit.vercel.app`), and a long random `SESSION_SECRET`. Also set `NODE_ENV=production`, `SESSION_COOKIE_SAMESITE=none`, `SESSION_COOKIE_SECURE=true`, and `TRUST_PROXY=true`.
-3. Generate a public domain and verify `https://<api>.up.railway.app/api/health` returns `{ "ok": true }`. Then run `node server/init.js <adminEmail> <adminName> <adminPassword>` locally with `MONGO_URI` pointed at Atlas to seed demo data.
-
-`render.yaml` remains available if you prefer Render; it requests the same secrets and production cookie settings through a Blueprint.
+**API — Render (free):**
+1. Push this repo to GitHub, then in Render choose **New → Blueprint** and select the repo (`render.yaml` configures the service).
+2. Set `MONGO_URI` to the Atlas string and `CLIENT_ORIGIN` to your Vercel URL (e.g. `https://phreddit.vercel.app`). The blueprint already sets `SESSION_COOKIE_SAMESITE=none`, `SESSION_COOKIE_SECURE=true`, and `TRUST_PROXY=true` for cross-site cookies.
+3. Verify `https://<api>.onrender.com/api/health` returns `{ "ok": true }`, then run `node server/init.js <adminEmail> <adminName> <adminPassword>` locally with `MONGO_URI` pointed at Atlas to seed demo data.
 
 **Client — Vercel (free):**
 1. Import the repo into Vercel; `vercel.json` handles the build and SPA rewrites (needed for deep links with client-side routing).
-2. Add the env var `VITE_API_BASE_URL=https://<api>.up.railway.app/api` and deploy.
+2. Add the env var `VITE_API_BASE_URL=https://<api>.onrender.com/api` and deploy.
 3. Update the Live demo link at the top of this README.
 
 ## Architecture Notes
