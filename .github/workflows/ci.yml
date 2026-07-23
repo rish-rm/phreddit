@@ -17,8 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -45,8 +45,8 @@ jobs:
         ports:
           - 27017:27017
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -67,8 +67,8 @@ jobs:
         ports:
           - 27017:27017
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -80,6 +80,29 @@ jobs:
       - name: Install Playwright browsers
         run: npx --prefix client playwright install --with-deps chromium
       - name: Run e2e tests
-        run: npm --prefix client run test:e2e
+        run: |
+          set -o pipefail
+          npm --prefix client run test:e2e 2>&1 | tee playwright-output.log
         env:
           E2E_MONGO_URI: mongodb://127.0.0.1:27017/phreddit_e2e
+      - name: Add e2e failure summary
+        if: failure()
+        run: |
+          {
+            echo "## Playwright failure"
+            echo
+            echo '```text'
+            tail -n 160 playwright-output.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics
+          path: |
+            playwright-output.log
+            client/playwright-report/
+            client/test-results/
+          if-no-files-found: warn
+          retention-days: 7
