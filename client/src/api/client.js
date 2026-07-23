@@ -20,7 +20,7 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  me: () => request("/auth/me"),
+  me: (options = {}) => request("/auth/me", options),
   register: (body) =>
     request("/auth/register", {
       method: "POST",

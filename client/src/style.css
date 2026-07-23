@@ -210,6 +210,79 @@ form label,
   padding: 0 18px;
 }
 
+.bootstrap-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--surface-alt);
+}
+
+.bootstrap-panel {
+  width: min(520px, 100%);
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 14px 36px rgba(20, 33, 45, 0.08);
+  text-align: center;
+}
+
+.bootstrap-brand {
+  margin: 0 0 24px;
+  color: var(--accent);
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.bootstrap-status {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.bootstrap-status h1 {
+  color: var(--ink);
+  font-size: 24px;
+}
+
+.bootstrap-status p {
+  max-width: 420px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.bootstrap-status button {
+  margin-top: 6px;
+  background: var(--accent);
+  color: white;
+}
+
+.bootstrap-status button:hover {
+  background: var(--accent-dark);
+}
+
+.bootstrap-detail {
+  font-size: 13px;
+}
+
+.bootstrap-spinner {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 4px;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: bootstrap-spin 800ms linear infinite;
+}
+
+@keyframes bootstrap-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .view-stack {
   min-width: 0;
 }
@@ -603,6 +676,12 @@ form label,
 
   .comment-card {
     margin-left: 0 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bootstrap-spinner {
+    animation: none;
   }
 }
 
