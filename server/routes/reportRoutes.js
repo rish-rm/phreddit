@@ -34,6 +34,24 @@ function normalizeOptionalNote(value, fieldName) {
   return trimmed;
 }
 
+function normalizeReportStatus(value) {
+  switch (value ?? "pending") {
+    case "pending":
+      return "pending";
+    case "dismissed":
+      return "dismissed";
+    case "content_removed":
+      return "content_removed";
+    case "all":
+      return null;
+    default: {
+      const error = new Error("Invalid report status.");
+      error.status = 400;
+      throw error;
+    }
+  }
+}
+
 function populateReport(query) {
   return query
     .populate("reportedBy", "displayName reputation")
@@ -89,18 +107,11 @@ router.post("/posts/:postId", requireLogin, async (req, res, next) => {
 
 router.get("/", requireLogin, requireAdmin, async (req, res, next) => {
   try {
-    const status = req.query.status || "pending";
-    const filter = {};
-
-    if (status !== "all") {
-      if (!["pending", "dismissed", "content_removed"].includes(status)) {
-        return res.status(400).json({ error: "Invalid report status." });
-      }
-      filter.status = status;
-    }
+    const status = normalizeReportStatus(req.query.status);
+    const query = status ? Report.find({ status }) : Report.find();
 
     const reports = await populateReport(
-      Report.find(filter).sort({ createdAt: -1 }).limit(50)
+      query.sort({ createdAt: -1 }).limit(50)
     );
 
     return res.json({ reports });

@@ -174,6 +174,44 @@ test("Get a Post returns bad request for an invalid post id", async (t) => {
   assert.equal(response.body.error, "Invalid resource id.");
 });
 
+test("Create a Comment rejects object-shaped database ids", async (t) => {
+  await connectTestDb();
+  await clearTestDb();
+
+  t.after(async () => {
+    await clearTestDb();
+    await disconnectTestDb();
+  });
+
+  const user = await createTestUser();
+  const community = await createTestCommunity(user);
+  const post = await Post.create({
+    title: "Safe comment target",
+    content: "Object-shaped ids must never reach a database query.",
+    postedBy: user._id,
+    community: community._id,
+    comments: []
+  });
+  const app = createApp({ useSessionStore: false });
+
+  const invalidPost = await supertest(app)
+    .post("/api/comments")
+    .set("x-test-user-id", String(user._id))
+    .send({ post: { $ne: null }, content: "Invalid post id" });
+  const invalidParent = await supertest(app)
+    .post("/api/comments")
+    .set("x-test-user-id", String(user._id))
+    .send({
+      post: String(post._id),
+      parentComment: { $ne: null },
+      content: "Invalid parent id"
+    });
+
+  assert.equal(invalidPost.status, 400);
+  assert.equal(invalidParent.status, 400);
+  assert.equal(await Comment.countDocuments({ post: post._id }), 0);
+});
+
 test("Create a Comment rejects replies attached to a different post", async (t) => {
   await connectTestDb();
   await clearTestDb();

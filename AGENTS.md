@@ -50,6 +50,9 @@ also `npm run test:e2e`, and update the specs in `client/e2e/` if flows moved.
   bypass once already.
 - Regenerate the session on login. Registration intentionally returns to the
   Welcome page without creating a session, matching the assignment flow.
+- Keep the global API limiter and production trusted-origin guard mounted
+  before `/api` routes. Cross-site session cookies require both controls;
+  unsafe production requests without an allowed `Origin` must stay blocked.
 - Mongo gotchas already handled in `server/routes/postRoutes.js` — keep them:
   `$text` cannot live inside `$or` (resolve matching ids first), and
   aggregation pipelines do NOT auto-cast string ids (use `toObjectId()`).

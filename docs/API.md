@@ -4,6 +4,18 @@ All endpoints are rooted at `/api`. Browser requests use a signed, HTTP-only
 session cookie. JSON errors have the shape `{ "error": "message" }`; registration
 validation may return `{ "errors": ["message"] }`.
 
+## Request Security
+
+All `/api` requests share a bounded per-IP budget. Responses expose
+`RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset`; exhausted
+budgets return `429` with `Retry-After`. Login and registration also use a
+smaller, path-specific authentication budget.
+
+In production, `POST`, `PUT`, `PATCH`, and `DELETE` requests must include an
+`Origin` matching `CLIENT_ORIGIN` or the API's own origin. Missing or untrusted
+origins return `403`. This protects the cross-site `SameSite=None` session
+cookie from form-based CSRF; local and test environments leave the guard off.
+
 ## Authentication
 
 | Method | Endpoint | Access | Purpose |

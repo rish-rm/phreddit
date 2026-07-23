@@ -147,6 +147,14 @@ test("Admins can review, dismiss, and remove reported posts", async (t) => {
   assert.equal(listResponse.body.reports.length, 1);
   assert.equal(listResponse.body.reports[0].targetPost.title, "Questionable post");
 
+  const invalidStatusResponse = await supertest(app)
+    .get("/api/reports")
+    .query({ status: ["pending", "dismissed"] })
+    .set("x-test-user-id", String(admin._id));
+
+  assert.equal(invalidStatusResponse.status, 400);
+  assert.equal(invalidStatusResponse.body.error, "Invalid report status.");
+
   const dismissResponse = await supertest(app)
     .post(`/api/reports/${reportResponse.body.report._id}/resolve`)
     .set("x-test-user-id", String(admin._id))
