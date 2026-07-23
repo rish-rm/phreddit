@@ -8,7 +8,7 @@ import {
   disconnectTestDb
 } from "./testHelpers.js";
 
-test("register auto-logs-in, sessions persist, logout clears, login validates", async (t) => {
+test("registration returns to login flow, sessions persist, logout clears, login validates", async (t) => {
   await connectTestDb();
   await clearTestDb();
 
@@ -45,19 +45,14 @@ test("register auto-logs-in, sessions persist, logout clears, login validates", 
     confirmPassword: password
   });
   assert.equal(registered.status, 201);
-  assert.equal(registered.body.user.email, email);
+  assert.equal(registered.body.user.displayName, `flowuser${stamp}`);
+  assert.equal(registered.body.user.email, undefined);
   assert.equal(registered.body.user.passwordHash, undefined);
 
-  // Registration should have started a session (auto-login).
+  // Registration deliberately does not start a session; the user logs in next.
   const meAfterRegister = await agent.get("/api/auth/me");
   assert.equal(meAfterRegister.status, 200);
-  assert.equal(meAfterRegister.body.user.email, email);
-
-  const loggedOut = await agent.post("/api/auth/logout");
-  assert.equal(loggedOut.status, 200);
-
-  const meAfterLogout = await agent.get("/api/auth/me");
-  assert.equal(meAfterLogout.body.user, null);
+  assert.equal(meAfterRegister.body.user, null);
 
   const badLogin = await agent.post("/api/auth/login").send({
     email,
@@ -70,4 +65,10 @@ test("register auto-logs-in, sessions persist, logout clears, login validates", 
 
   const meAfterLogin = await agent.get("/api/auth/me");
   assert.equal(meAfterLogin.body.user.email, email);
+
+  const loggedOut = await agent.post("/api/auth/logout");
+  assert.equal(loggedOut.status, 200);
+
+  const meAfterLogout = await agent.get("/api/auth/me");
+  assert.equal(meAfterLogout.body.user, null);
 });

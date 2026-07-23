@@ -4,16 +4,24 @@ import { commentCountOf } from "../utils/posts.js";
 import RichText from "./RichText.jsx";
 import SavePostButton from "./SavePostButton.jsx";
 
-export default function PostCard({ post, user, showMessage, onUserRefresh }) {
+export default function PostCard({
+  post,
+  user,
+  showMessage,
+  onUserRefresh,
+  showCommunity = true
+}) {
   const communityId = post.community?._id || post.community;
   const authorId = userIdOf(post.postedBy);
 
   return (
     <article className="post-card">
       <p className="meta-row">
-        <Link className="inline-link" to={`/communities/${communityId}`}>
-          {post.community?.name || "Unknown community"}
-        </Link>
+        {showCommunity && (
+          <Link className="inline-link" to={`/communities/${communityId}`}>
+            {post.community?.name || "Unknown community"}
+          </Link>
+        )}
         <span>
           Posted by{" "}
           {authorId ? (
@@ -33,7 +41,7 @@ export default function PostCard({ post, user, showMessage, onUserRefresh }) {
       {flairContentOf(post.linkFlair) && (
         <span className="flair">{flairContentOf(post.linkFlair)}</span>
       )}
-      <RichText text={post.content} />
+      <RichText text={post.content?.slice(0, 80) || ""} />
       <p className="meta-row">
         <span>{formatDate(post.createdAt)}</span>
         <span>Views: {post.views ?? 0}</span>

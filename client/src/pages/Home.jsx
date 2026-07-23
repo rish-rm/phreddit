@@ -59,7 +59,7 @@ export default function Home() {
     <main className="card" aria-label="Home Page">
       <div className="page-header">
         <div>
-          <h1>Home</h1>
+          <h1>All Posts</h1>
           <p className="page-subtitle">Browse the latest conversations across Phreddit.</p>
         </div>
         <SortButtons currentSort={currentSort} onSortChange={setCurrentSort} />

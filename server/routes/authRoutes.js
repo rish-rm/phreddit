@@ -49,13 +49,12 @@ router.post("/register", authRateLimiter, async (req, res, next) => {
       isAdmin: false
     });
 
-    // Log the new account in immediately.
-    await regenerateSession(req);
-    req.session.userId = String(user._id);
-
     return res.status(201).json({
-      message: "Account created successfully.",
-      user
+      message: "Account created successfully. You can now log in.",
+      user: {
+        _id: user._id,
+        displayName: user.displayName
+      }
     });
   } catch (error) {
     next(error);

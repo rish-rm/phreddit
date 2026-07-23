@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
+import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api } from "../api/client.js";
 import SortButtons from "../components/SortButtons.jsx";
+import PostCard from "../components/PostCard.jsx";
 import RichText from "../components/RichText.jsx";
-import { displayNameOfUser, flairContentOf, formatDate, userIdOf } from "../utils/format.jsx";
-import { commentCountOf } from "../utils/posts.js";
+import { displayNameOfUser, formatDate } from "../utils/format.jsx";
 
 const PAGE_SIZE = 20;
 
@@ -19,14 +19,19 @@ export default function Community() {
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [communityError, setCommunityError] = useState("");
   const [currentSort, setCurrentSort] = useState("newest");
 
   useEffect(() => {
     if (!communityId) return;
+    setCommunityError("");
     api
       .getCommunity(communityId)
       .then((data) => setCommunity(data.community))
-      .catch((error) => showMessage(error.message, "error"));
+      .catch((error) => {
+        setCommunityError(error.message);
+        showMessage(error.message, "error");
+      });
   }, [communityId, showMessage, refreshToken]);
 
   const loadPosts = useCallback(
@@ -86,7 +91,14 @@ export default function Community() {
     return (
       <main className="card">
         <h1>Community</h1>
-        <p>Loading community...</p>
+        {communityError ? (
+          <div className="error-state" role="alert">
+            <p>{communityError}</p>
+            <button type="button" onClick={() => navigate("/home")}>Back Home</button>
+          </div>
+        ) : (
+          <p>Loading community...</p>
+        )}
       </main>
     );
   }
@@ -105,7 +117,7 @@ export default function Community() {
       <p className="meta-row">
         <span>Creator: {displayNameOfUser(community.creator)}</span>
         <span>Created: {formatDate(community.createdAt)}</span>
-        <span>Members: {(community.members || []).length}</span>
+        <span>Members: {community.members?.length ?? community.memberCount ?? 0}</span>
       </p>
       {user && (
         <button onClick={toggleMembership}>{isJoined ? "Leave Community" : "Join Community"}</button>
@@ -118,40 +130,16 @@ export default function Community() {
         ) : posts.length === 0 ? (
           <p>No posts in this community yet.</p>
         ) : (
-          posts.map((post) => {
-            const authorId = userIdOf(post.postedBy);
-            return (
-              <article key={post._id} className="post-card">
-                <p className="meta-row">
-                  <span>
-                    By{" "}
-                    {authorId ? (
-                      <Link className="inline-link" to={`/users/${authorId}`}>
-                        {displayNameOfUser(post.postedBy)}
-                      </Link>
-                    ) : (
-                      displayNameOfUser(post.postedBy)
-                    )}
-                  </span>
-                  <span>{formatDate(post.createdAt)}</span>
-                </p>
-                <h3>
-                  <Link className="inline-link strong" to={`/posts/${post._id}`}>
-                    {post.title}
-                  </Link>
-                </h3>
-                {flairContentOf(post.linkFlair) && (
-                  <span className="flair">{flairContentOf(post.linkFlair)}</span>
-                )}
-                <p className="meta-row">
-                  <span>Views: {post.views ?? 0}</span>
-                  <span>Comments: {commentCountOf(post)}</span>
-                  <span>Upvotes: {post.upvotes ?? 0}</span>
-                  <span>Downvotes: {post.downvotes ?? 0}</span>
-                </p>
-              </article>
-            );
-          })
+          posts.map((post) => (
+            <PostCard
+              key={post._id}
+              post={post}
+              user={user}
+              showMessage={showMessage}
+              onUserRefresh={refreshCurrentUser}
+              showCommunity={false}
+            />
+          ))
         )}
       </div>
       {hasMore && (

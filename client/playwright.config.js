@@ -2,15 +2,17 @@ import { defineConfig, devices } from "@playwright/test";
 
 const e2eMongoUri = process.env.E2E_MONGO_URI ||
   `mongodb://127.0.0.1:27017/phreddit_e2e_${Date.now()}`;
+process.env.E2E_MONGO_URI = e2eMongoUri;
 
 export default defineConfig({
   testDir: "./e2e",
+  globalTeardown: "../server/tests/e2eTeardown.js",
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: "http://127.0.0.1:5173",
-    trace: "on-first-retry"
+    trace: "retain-on-failure"
   },
   webServer: [
     {

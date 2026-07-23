@@ -2,7 +2,6 @@ import { test, expect } from "@playwright/test";
 
 const navigationTimeout = 15000;
 
-// Registration auto-logs the user in, so there is no separate login step.
 async function registerUser(page, { email, displayName, password }) {
   await page.goto("/");
   await page.getByRole("button", { name: /register/i }).click();
@@ -15,7 +14,12 @@ async function registerUser(page, { email, displayName, password }) {
   await page.locator("#confirmPassword").fill(password);
   await page.getByRole("button", { name: /sign up/i }).click();
 
-  await expect(page.getByRole("heading", { name: /home/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /welcome to phreddit/i })).toBeVisible();
+  await page.getByRole("button", { name: /login/i }).click();
+  await page.locator("#loginEmail").fill(email);
+  await page.locator("#loginPassword").fill(password);
+  await page.getByRole("button", { name: /^login$/i }).click();
+  await expect(page.getByRole("heading", { name: /all posts/i })).toBeVisible();
 }
 
 async function createCommunity(page, communityName) {
@@ -30,7 +34,7 @@ async function createCommunity(page, communityName) {
     timeout: navigationTimeout
   });
   await page.getByRole("button", { name: /^home$/i }).first().click();
-  await expect(page.getByRole("heading", { name: /home/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /all posts/i })).toBeVisible();
 }
 
 async function createPost(page, { title, content, flair }) {
@@ -42,13 +46,9 @@ async function createPost(page, { title, content, flair }) {
   }
   await page.getByRole("button", { name: /submit/i }).click();
 
-  // Creating a post lands on the new post's page.
-  await expect(page).toHaveURL(/\/posts\//, { timeout: navigationTimeout });
-  await expect(page.getByRole("heading", { name: title })).toBeVisible({
+  await expect(page.getByRole("heading", { name: /all posts/i })).toBeVisible({
     timeout: navigationTimeout
   });
-  await page.getByRole("button", { name: /back home/i }).click();
-  await expect(page.getByRole("heading", { name: /home/i })).toBeVisible();
   await expect(page.getByRole("link", { name: title })).toBeVisible();
 }
 
@@ -88,8 +88,10 @@ test("core flows: content creation, self-vote gate, sorting, profile, and two-us
 
   await page.getByRole("button", { name: /^save$/i }).click();
   await expect(page.getByRole("button", { name: /^saved$/i })).toBeVisible();
-  await page.getByPlaceholder("Write a comment").fill(commentText);
-  await page.getByRole("button", { name: /add comment/i }).click();
+  await page.getByRole("button", { name: /add a comment/i }).click();
+  await expect(page.getByRole("heading", { name: /new comment/i })).toBeVisible();
+  await page.locator("#commentContent").fill(commentText);
+  await page.getByRole("button", { name: /submit comment/i }).click();
   await expect(page.getByText(commentText)).toBeVisible();
 
   // Flair filtering and Active sort on Home.

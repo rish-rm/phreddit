@@ -4,6 +4,7 @@ import supertest from "supertest";
 import Comment from "../models/Comment.js";
 import LinkFlair from "../models/LinkFlair.js";
 import Post from "../models/Post.js";
+import User from "../models/User.js";
 import { createApp } from "../server.js";
 import {
   clearTestDb,
@@ -112,7 +113,7 @@ test("Deleting a user removes their votes and corrects vote totals", async (t) =
   });
 
   const admin = await createTestUser({ isAdmin: true, displayName: "adminUser", email: "admin@example.com" });
-  const author = await createTestUser();
+  const author = await createTestUser({ reputation: 95 });
   const voter = await createTestUser();
   const community = await createTestCommunity(author);
   const post = await Post.create({
@@ -154,4 +155,6 @@ test("Deleting a user removes their votes and corrects vote totals", async (t) =
   assert.equal(updatedPost.votedBy.length, 0);
   assert.equal(updatedComment.downvotes, 0);
   assert.equal(updatedComment.votedBy.length, 0);
+  const updatedAuthor = await User.findById(author._id);
+  assert.equal(updatedAuthor.reputation, 100);
 });

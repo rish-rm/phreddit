@@ -64,6 +64,10 @@ export function createApp({ useSessionStore = true } = {}) {
     app.set("trust proxy", 1);
   }
 
+  if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET is required in production.");
+  }
+
   const sessionConfig = {
     secret: process.env.SESSION_SECRET || "dev-secret-change-me",
     resave: false,
@@ -112,6 +116,9 @@ export function createApp({ useSessionStore = true } = {}) {
       message = Object.values(error.errors || {})
         .map((detail) => detail.message)
         .join(" ") || "Invalid input.";
+    } else if (error.code === 11000) {
+      status = 409;
+      message = "That value is already in use.";
     }
 
     if (status >= 500) {

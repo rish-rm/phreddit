@@ -187,7 +187,7 @@ form label,
 
 .message {
   position: fixed;
-  top: 12px;
+  bottom: 18px;
   left: 50%;
   z-index: 30;
   width: min(760px, calc(100% - 24px));
@@ -411,6 +411,45 @@ form label,
   font-weight: 850;
 }
 
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #eef2f6;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.button-link:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.button-link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus) 28%, transparent);
+  outline-offset: 2px;
+}
+
+.eyebrow,
+.field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.error-state {
+  padding: 14px;
+  border: 1px solid #e9a8a8;
+  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
 .list-demarcation {
   margin: 8px 0 0;
   padding-top: 10px;
@@ -486,6 +525,26 @@ form label,
 
   .sidebar {
     position: static;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 10px;
+  }
+
+  .sidebar h3 {
+    display: none;
+  }
+
+  .sidebar .list-column {
+    display: flex;
+    gap: 6px;
+  }
+
+  .sidebar button {
+    width: auto;
+    min-width: max-content;
+    margin: 0;
   }
 
   .card {

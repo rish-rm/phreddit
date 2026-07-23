@@ -1,13 +1,9 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client.js";
 import { displayNameOfUser, formatDate, userIdOf } from "../utils/format.jsx";
 import RichText from "./RichText.jsx";
 
 export default function CommentItem({ comment, user, postId, depth = 0, showMessage, onReload }) {
-  const [showReply, setShowReply] = useState(false);
-  const [replyText, setReplyText] = useState("");
-
   const canVote = Boolean(user) && (user.reputation ?? 0) >= 50;
   const isOwnComment =
     user && String(userIdOf(comment.commentedBy)) === String(user._id);
@@ -28,27 +24,10 @@ export default function CommentItem({ comment, user, postId, depth = 0, showMess
     }
   }
 
-  async function submitReply(event) {
-    event.preventDefault();
-    if (!replyText.trim()) return;
-    try {
-      await api.createComment({
-        post: postId,
-        parentComment: comment._id,
-        content: replyText
-      });
-      setReplyText("");
-      setShowReply(false);
-      await onReload();
-    } catch (error) {
-      showMessage(error.message, "error");
-    }
-  }
-
   const replies = Array.isArray(comment.replies) ? comment.replies : [];
 
   return (
-    <div className="comment-card" style={{ marginLeft: depth * 24 }}>
+    <div className="comment-card" style={{ marginLeft: Math.min(depth, 6) * 24 }}>
       <div className="meta-row">
         {authorId ? (
           <Link className="inline-link" to={`/users/${authorId}`}>
@@ -84,9 +63,12 @@ export default function CommentItem({ comment, user, postId, depth = 0, showMess
           >
             ▼ {comment.downvotes ?? 0}
           </button>
-          <button onClick={() => setShowReply((value) => !value)}>
-            {showReply ? "Cancel" : "Reply"}
-          </button>
+          <Link
+            className="button-link"
+            to={`/posts/${postId}/comments/new?parent=${comment._id}`}
+          >
+            Reply
+          </Link>
         </div>
       )}
       {!user && (
@@ -94,16 +76,6 @@ export default function CommentItem({ comment, user, postId, depth = 0, showMess
           <span>Up: {comment.upvotes ?? 0}</span>
           <span>Down: {comment.downvotes ?? 0}</span>
         </div>
-      )}
-      {showReply && (
-        <form onSubmit={submitReply}>
-          <textarea
-            placeholder="Write a reply"
-            value={replyText}
-            onChange={(event) => setReplyText(event.target.value)}
-          />
-          <button type="submit">Submit reply</button>
-        </form>
       )}
       {replies.map((reply) => (
         <CommentItem

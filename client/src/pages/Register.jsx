@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 
-export default function Register({ setUser, showMessage }) {
+export default function Register({ showMessage }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     firstName: "",
@@ -12,17 +12,19 @@ export default function Register({ setUser, showMessage }) {
     password: "",
     confirmPassword: ""
   });
+  const [submitting, setSubmitting] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
     try {
+      setSubmitting(true);
       const data = await api.register(form);
-      // Registration starts a session server-side, so log straight in.
-      setUser(data.user);
-      showMessage("Account created successfully. Welcome to Phreddit!", "success");
-      navigate("/home");
+      showMessage(data.message, "success");
+      navigate("/");
     } catch (error) {
       showMessage(error.message, "error");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -70,6 +72,7 @@ export default function Register({ setUser, showMessage }) {
           type="password"
           required
           minLength={8}
+          maxLength={128}
           value={form.password}
           onChange={(event) => setForm({ ...form, password: event.target.value })}
         />
@@ -80,11 +83,14 @@ export default function Register({ setUser, showMessage }) {
           type="password"
           required
           minLength={8}
+          maxLength={128}
           value={form.confirmPassword}
           onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
         />
         <div className="action-row">
-          <button type="submit">Sign Up</button>
+          <button type="submit" disabled={submitting}>
+            {submitting ? "Creating account..." : "Sign Up"}
+          </button>
           <button type="button" onClick={() => navigate("/")}>Back</button>
         </div>
       </form>

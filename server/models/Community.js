@@ -7,12 +7,14 @@ const communitySchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
+      maxlength: 100,
       index: true
     },
     description: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      maxlength: 500
     },
     creator: {
       type: mongoose.Schema.Types.ObjectId,

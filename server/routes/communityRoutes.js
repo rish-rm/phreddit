@@ -3,35 +3,42 @@ import Community from "../models/Community.js";
 import User from "../models/User.js";
 import { requireLogin } from "../middleware/auth.js";
 import { deleteCommunityCascade } from "../utils/cascadeDelete.js";
-import { requireNonEmptyString } from "../utils/validation.js";
+import { requireLength, requireValidUserContent } from "../utils/validation.js";
 
 const router = express.Router();
 
 router.get("/", async (req, res, next) => {
   try {
     const communities = await Community.find({})
+      .select("name description creator members createdAt")
       .populate("creator", "displayName")
-      .populate("members", "displayName")
-      .sort({ name: 1 });
-
-    if (!req.currentUser) {
-      return res.json({ communities });
-    }
+      .sort({ name: 1 })
+      .lean();
 
     const joined = new Set(
-      req.currentUser.joinedCommunities.map((id) => String(id))
+      (req.currentUser?.joinedCommunities || []).map((id) => String(id))
     );
 
-    communities.sort((a, b) => {
-      const aJoined = joined.has(String(a._id));
-      const bJoined = joined.has(String(b._id));
+    const presented = communities.map((community) => ({
+      _id: community._id,
+      name: community.name,
+      description: community.description,
+      creator: community.creator,
+      createdAt: community.createdAt,
+      memberCount: community.members.length,
+      isJoined: joined.has(String(community._id))
+    }));
+
+    presented.sort((a, b) => {
+      const aJoined = a.isJoined;
+      const bJoined = b.isJoined;
       if (aJoined !== bJoined) {
         return aJoined ? -1 : 1;
       }
       return a.name.localeCompare(b.name);
     });
 
-    return res.json({ communities });
+    return res.json({ communities: presented });
   } catch (error) {
     next(error);
   }
@@ -61,8 +68,12 @@ router.get("/:id", async (req, res, next) => {
 
 router.post("/", requireLogin, async (req, res, next) => {
   try {
-    const name = requireNonEmptyString(req.body.name, "Community name");
-    const description = requireNonEmptyString(req.body.description, "Community description");
+    const name = requireLength(req.body.name, "Community name", 100);
+    const description = requireValidUserContent(
+      req.body.description,
+      "Community description",
+      500
+    );
 
     const existing = await Community.findOne({ name });
     if (existing) {
@@ -111,7 +122,7 @@ router.put("/:id", requireLogin, async (req, res, next) => {
     }
 
     if (Object.hasOwn(req.body, "name")) {
-      const name = requireNonEmptyString(req.body.name, "Community name");
+      const name = requireLength(req.body.name, "Community name", 100);
       if (name !== community.name) {
         const existing = await Community.findOne({ name });
         if (existing) {
@@ -124,9 +135,10 @@ router.put("/:id", requireLogin, async (req, res, next) => {
     }
 
     if (Object.hasOwn(req.body, "description")) {
-      community.description = requireNonEmptyString(
+      community.description = requireValidUserContent(
         req.body.description,
-        "Community description"
+        "Community description",
+        500
       );
     }
 

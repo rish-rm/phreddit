@@ -14,6 +14,7 @@ export default function CreatePost() {
   });
   const [communities, setCommunities] = useState([]);
   const [flairs, setFlairs] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -67,6 +68,7 @@ export default function CreatePost() {
     }
 
     try {
+      setSubmitting(true);
       let linkFlairId = form.linkFlair || null;
 
       if (form.newFlair.trim()) {
@@ -74,7 +76,7 @@ export default function CreatePost() {
         linkFlairId = (data.linkFlair?._id) || data._id;
       }
 
-      const data = await api.createPost({
+      await api.createPost({
         community: form.community,
         title: form.title.trim(),
         content: form.content.trim(),
@@ -82,10 +84,11 @@ export default function CreatePost() {
       });
       refreshData();
       showMessage("Post created successfully.", "success");
-      const newId = data.post?._id;
-      navigate(newId ? `/posts/${newId}` : "/home");
+      navigate("/home");
     } catch (error) {
       showMessage(error.message, "error");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -150,7 +153,9 @@ export default function CreatePost() {
           onChange={(event) => setForm({ ...form, content: event.target.value })}
         />
         <div className="action-row">
-          <button type="submit" disabled={communities.length === 0}>Submit</button>
+          <button type="submit" disabled={communities.length === 0 || submitting}>
+            {submitting ? "Publishing..." : "Submit"}
+          </button>
           <button type="button" onClick={() => navigate("/home")}>Cancel</button>
         </div>
       </form>

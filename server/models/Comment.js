@@ -21,7 +21,8 @@ const commentSchema = new mongoose.Schema(
     content: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      maxlength: 500
     },
     commentedBy: {
       type: mongoose.Schema.Types.ObjectId,

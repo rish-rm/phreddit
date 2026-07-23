@@ -1,13 +1,21 @@
 name: CI
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
-    branches: [main]
+    branches: [main, "release/**"]
   pull_request:
 
 jobs:
   lint-and-unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +38,7 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       mongo:
         image: mongo:7
@@ -51,6 +60,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       mongo:
         image: mongo:7

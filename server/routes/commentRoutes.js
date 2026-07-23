@@ -7,14 +7,14 @@ import { deleteCommentAndReplies } from "../utils/cascadeDelete.js";
 import { canUserVote } from "../utils/voting.js";
 import { applyVote } from "../utils/voteService.js";
 import { presentVotable } from "../utils/serialize.js";
-import { requireNonEmptyString } from "../utils/validation.js";
+import { requireNonEmptyString, requireValidUserContent } from "../utils/validation.js";
 import { emitPostUpdated } from "../realtime.js";
 
 const router = express.Router();
 
 router.post("/", requireLogin, async (req, res, next) => {
   try {
-    const content = requireNonEmptyString(req.body.content, "Comment content");
+    const content = requireValidUserContent(req.body.content, "Comment content", 500);
     const postId = requireNonEmptyString(req.body.post, "Post");
 
     const post = await Post.findById(postId);
@@ -97,7 +97,7 @@ router.put("/:id", requireLogin, async (req, res, next) => {
       });
     }
 
-    comment.content = requireNonEmptyString(req.body.content, "Comment content");
+    comment.content = requireValidUserContent(req.body.content, "Comment content", 500);
     await comment.save();
     emitPostUpdated(comment.post);
 
@@ -125,9 +125,7 @@ router.delete("/:id", requireLogin, async (req, res, next) => {
       });
     }
 
-    const postId = comment.post;
     await deleteCommentAndReplies(comment._id);
-    emitPostUpdated(postId);
 
     return res.json({
       message: "Comment deleted successfully."

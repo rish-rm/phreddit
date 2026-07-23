@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import supertest from "supertest";
 import Post from "../models/Post.js";
+import Comment from "../models/Comment.js";
 import Report from "../models/Report.js";
 import User from "../models/User.js";
 import { createApp } from "../server.js";
@@ -57,6 +58,48 @@ test("Users can save, view, and unsave posts", async (t) => {
 
   assert.equal(unsaveResponse.status, 200);
   assert.equal(unsaveResponse.body.user.savedPosts.length, 0);
+});
+
+test("profile content never exposes votedBy histories", async (t) => {
+  await connectTestDb();
+  await clearTestDb();
+
+  t.after(async () => {
+    await clearTestDb();
+    await disconnectTestDb();
+  });
+
+  const author = await createTestUser();
+  const voter = await createTestUser();
+  const community = await createTestCommunity(author);
+  const post = await Post.create({
+    title: "Private voting history",
+    content: "The API should expose only the current user's vote.",
+    postedBy: author._id,
+    community: community._id,
+    comments: [],
+    upvotes: 1,
+    votedBy: [{ user: voter._id, voteType: "upvote" }]
+  });
+  await Comment.create({
+    content: "Comment with a private voter list",
+    commentedBy: author._id,
+    post: post._id,
+    replies: [],
+    upvotes: 1,
+    votedBy: [{ user: voter._id, voteType: "upvote" }]
+  });
+
+  const app = createApp({ useSessionStore: false });
+  const response = await supertest(app)
+    .get(`/api/users/${author._id}/profile-content`)
+    .set("x-test-user-id", String(author._id));
+
+  assert.equal(response.status, 200);
+  assert.equal(Object.hasOwn(response.body.posts[0], "votedBy"), false);
+  assert.equal(Object.hasOwn(response.body.comments[0], "votedBy"), false);
+  assert.equal(response.body.posts[0].userVote, null);
+  assert.equal(response.body.comments[0].userVote, null);
 });
 
 test("Admins can review, dismiss, and remove reported posts", async (t) => {

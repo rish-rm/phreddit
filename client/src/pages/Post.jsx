@@ -5,16 +5,17 @@ import { subscribeToPost } from "../realtime.js";
 import CommentItem from "../components/CommentItem.jsx";
 import RichText from "../components/RichText.jsx";
 import SavePostButton from "../components/SavePostButton.jsx";
-import { displayNameOfUser, flairContentOf, userIdOf } from "../utils/format.jsx";
+import { displayNameOfUser, flairContentOf, formatDate, userIdOf } from "../utils/format.jsx";
 import { commentCountOf, sortComments } from "../utils/posts.js";
 
 export default function Post() {
-  const { user, showMessage, refreshCurrentUser, refreshData } = useOutletContext();
+  const { user, showMessage, refreshCurrentUser } = useOutletContext();
   const { postId } = useParams();
   const navigate = useNavigate();
 
   const [post, setPost] = useState(null);
-  const [commentText, setCommentText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [commentSort, setCommentSort] = useState("newest");
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportForm, setReportForm] = useState({
@@ -25,10 +26,15 @@ export default function Post() {
   const loadPost = useCallback(async () => {
     if (!postId) return;
     try {
+      setLoadError("");
       const data = await api.getPost(postId);
       setPost(data.post);
     } catch (error) {
+      setPost(null);
+      setLoadError(error.message);
       showMessage(error.message, "error");
+    } finally {
+      setLoading(false);
     }
   }, [postId, showMessage]);
 
@@ -80,22 +86,7 @@ export default function Post() {
           : previous
       );
       showMessage(data.message, "success");
-      refreshData();
-    } catch (error) {
-      showMessage(error.message, "error");
-    }
-  }
-
-  async function submitComment(event) {
-    event.preventDefault();
-    try {
-      await api.createComment({
-        post: postId,
-        content: commentText
-      });
-      setCommentText("");
-      refreshData();
-      await loadPost();
+      refreshCurrentUser();
     } catch (error) {
       showMessage(error.message, "error");
     }
@@ -117,7 +108,17 @@ export default function Post() {
     return (
       <main className="card">
         <h1>Post</h1>
-        <p>Loading post...</p>
+        {loading ? (
+          <p>Loading post...</p>
+        ) : (
+          <div className="error-state" role="alert">
+            <p>{loadError || "This post is unavailable."}</p>
+            <div className="action-row">
+              <button type="button" onClick={() => { setLoading(true); loadPost(); }}>Retry</button>
+              <button type="button" onClick={() => navigate("/home")}>Back Home</button>
+            </div>
+          </div>
+        )}
       </main>
     );
   }
@@ -137,6 +138,7 @@ export default function Post() {
             {post.community?.name || "Unknown community"}
           </Link>
         </span>
+        <span>Posted: {formatDate(post.createdAt)}</span>
         <span>
           Posted by{" "}
           {authorId ? (
@@ -223,6 +225,7 @@ export default function Post() {
         <div className="action-row">
           <button
             type="button"
+            aria-pressed={commentSort === "newest"}
             className={commentSort === "newest" ? "active" : ""}
             onClick={() => setCommentSort("newest")}
           >
@@ -230,6 +233,7 @@ export default function Post() {
           </button>
           <button
             type="button"
+            aria-pressed={commentSort === "top"}
             className={commentSort === "top" ? "active" : ""}
             onClick={() => setCommentSort("top")}
           >
@@ -238,14 +242,9 @@ export default function Post() {
         </div>
       </div>
       {user && (
-        <form onSubmit={submitComment}>
-          <textarea
-            placeholder="Write a comment"
-            value={commentText}
-            onChange={(event) => setCommentText(event.target.value)}
-          />
-          <button type="submit">Add Comment</button>
-        </form>
+        <button type="button" onClick={() => navigate(`/posts/${postId}/comments/new`)}>
+          Add a comment
+        </button>
       )}
       <div className="list-column">
         {sortedComments.length === 0 ? (

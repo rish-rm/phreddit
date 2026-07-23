@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 export default function Banner({ user, onLogout }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [searchValue, setSearchValue] = useState(searchParams.get("q") || "");
+
+  useEffect(() => {
+    setSearchValue(searchParams.get("q") || "");
+  }, [searchParams]);
 
   function submitSearch() {
     const query = searchValue.trim();

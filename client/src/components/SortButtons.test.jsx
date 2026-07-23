@@ -9,7 +9,9 @@ describe("SortButtons", () => {
     render(<SortButtons currentSort="newest" onSortChange={onSortChange} />);
 
     expect(screen.getByRole("button", { name: "Newest" }).className).toContain("active");
+    expect(screen.getByRole("button", { name: "Newest" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "Active" }).className).not.toContain("active");
+    expect(screen.getByRole("button", { name: "Active" }).getAttribute("aria-pressed")).toBe("false");
 
     fireEvent.click(screen.getByRole("button", { name: "Active" }));
     expect(onSortChange).toHaveBeenCalledWith("active");

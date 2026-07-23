@@ -17,6 +17,7 @@ import Home from "./pages/Home.jsx";
 import Search from "./pages/Search.jsx";
 import CreateCommunity from "./pages/CreateCommunity.jsx";
 import CreatePost from "./pages/CreatePost.jsx";
+import CreateComment from "./pages/CreateComment.jsx";
 import Community from "./pages/Community.jsx";
 import Post from "./pages/Post.jsx";
 import Profile from "./pages/Profile.jsx";
@@ -162,7 +163,7 @@ export default function App() {
             user ? (
               <Navigate to="/home" replace />
             ) : (
-              <Register setUser={setUser} showMessage={showMessage} />
+              <Register showMessage={showMessage} />
             )
           }
         />
@@ -194,6 +195,7 @@ export default function App() {
           <Route path="/communities/new" element={<CreateCommunity />} />
           <Route path="/communities/:communityId" element={<Community />} />
           <Route path="/posts/new" element={<CreatePost />} />
+          <Route path="/posts/:postId/comments/new" element={<CreateComment />} />
           <Route path="/posts/:postId" element={<Post />} />
           <Route path="/users/:userId" element={<UserProfile />} />
           <Route path="/profile" element={<Profile />} />

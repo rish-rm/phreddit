@@ -1,4 +1,11 @@
 export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 128;
+
+function validationError(message) {
+  const error = new Error(message);
+  error.status = 400;
+  return error;
+}
 
 export function validateEmail(email) {
   if (typeof email !== "string") return false;
@@ -47,6 +54,8 @@ export function validateRegistrationInput(input) {
     errors.push("Password is required.");
   } else if (input.password.length < PASSWORD_MIN_LENGTH) {
     errors.push(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
+  } else if (input.password.length > PASSWORD_MAX_LENGTH) {
+    errors.push(`Password must be ${PASSWORD_MAX_LENGTH} characters or less.`);
   }
   if (input?.password !== input?.confirmPassword) {
     errors.push("Passwords must match.");
@@ -72,9 +81,35 @@ export function validateRegistrationInput(input) {
 
 export function requireNonEmptyString(value, fieldName) {
   if (typeof value !== "string" || value.trim().length === 0) {
-    const error = new Error(`${fieldName} is required.`);
-    error.status = 400;
-    throw error;
+    throw validationError(`${fieldName} is required.`);
   }
   return value.trim();
+}
+
+export function requireLength(value, fieldName, maxLength) {
+  const normalized = requireNonEmptyString(value, fieldName);
+  if (normalized.length > maxLength) {
+    throw validationError(`${fieldName} must be ${maxLength} characters or less.`);
+  }
+  return normalized;
+}
+
+export function requireValidUserContent(value, fieldName, maxLength = null) {
+  const normalized = requireNonEmptyString(value, fieldName);
+  if (maxLength && normalized.length > maxLength) {
+    throw validationError(`${fieldName} must be ${maxLength} characters or less.`);
+  }
+
+  const markdownLink = /\[([^\]]*)\]\(([^)]*)\)/g;
+  for (const match of normalized.matchAll(markdownLink)) {
+    const label = match[1].trim();
+    const url = match[2].trim();
+    if (!label || !/^https?:\/\/\S+$/i.test(url)) {
+      throw validationError(
+        `${fieldName} links must use non-empty text and an http:// or https:// URL.`
+      );
+    }
+  }
+
+  return normalized;
 }

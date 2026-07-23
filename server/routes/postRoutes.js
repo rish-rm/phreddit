@@ -2,6 +2,7 @@ import express from "express";
 import mongoose from "mongoose";
 import Comment from "../models/Comment.js";
 import Community from "../models/Community.js";
+import LinkFlair from "../models/LinkFlair.js";
 import Post from "../models/Post.js";
 import User from "../models/User.js";
 import { requireLogin } from "../middleware/auth.js";
@@ -10,7 +11,11 @@ import { canUserVote } from "../utils/voting.js";
 import { applyVote } from "../utils/voteService.js";
 import { attachPostStats } from "../utils/postStats.js";
 import { presentVotable } from "../utils/serialize.js";
-import { requireNonEmptyString } from "../utils/validation.js";
+import {
+  requireLength,
+  requireNonEmptyString,
+  requireValidUserContent
+} from "../utils/validation.js";
 import { emitPostUpdated } from "../realtime.js";
 
 const router = express.Router();
@@ -77,40 +82,98 @@ function hydratePostsQuery(query) {
     .populate("linkFlair", "content");
 }
 
+function joinedCommunityIds(currentUser) {
+  return (currentUser?.joinedCommunities || []).map(
+    (id) => new mongoose.Types.ObjectId(String(id))
+  );
+}
+
+function joinedRankStage(joinedIds) {
+  if (joinedIds.length === 0) {
+    return { $addFields: { joinedRank: 0 } };
+  }
+  return {
+    $addFields: {
+      joinedRank: { $cond: [{ $in: ["$community", joinedIds] }, 1, 0] }
+    }
+  };
+}
+
+async function hydrateOrderedPosts(ordered) {
+  const orderedIds = ordered.map((item) => String(item._id));
+  const docs = await hydratePostsQuery(Post.find({ _id: { $in: orderedIds } }));
+  const docsById = new Map(docs.map((doc) => [String(doc._id), doc]));
+  return orderedIds.map((id) => docsById.get(id)).filter(Boolean);
+}
+
+async function listStandardPosts(filter, skip, limit, direction, joinedIds) {
+  const ordered = await Post.aggregate([
+    { $match: filter },
+    joinedRankStage(joinedIds),
+    { $sort: { joinedRank: -1, createdAt: direction, _id: direction } },
+    { $skip: skip },
+    { $limit: limit },
+    { $project: { _id: 1 } }
+  ]);
+  return hydrateOrderedPosts(ordered);
+}
+
+async function normalizeLinkFlair(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const flairId = toObjectId(value, "link flair");
+  if (!(await LinkFlair.exists({ _id: flairId }))) {
+    const error = new Error("Link flair not found.");
+    error.status = 400;
+    throw error;
+  }
+  return flairId;
+}
+
 // "Active" ranks posts with comment activity first (by latest comment or
 // reply), then quiet posts by creation date. Computed in an aggregation so
 // it can be sorted and paginated database-side.
-async function listActivePosts(filter, skip, limit) {
+async function listActivePosts(filter, skip, limit, joinedIds) {
   const ordered = await Post.aggregate([
     { $match: filter },
     {
       $lookup: {
         from: "comments",
-        localField: "_id",
-        foreignField: "post",
-        as: "cs",
-        pipeline: [{ $project: { createdAt: 1 } }]
-      }
-    },
-    {
-      $addFields: {
-        commentCount: { $size: "$cs" },
-        latestCommentAt: {
-          $max: {
-            $map: { input: "$cs", as: "c", in: "$$c.createdAt" }
+        let: { postId: "$_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$post", "$$postId"] } } },
+          {
+            $group: {
+              _id: null,
+              commentCount: { $sum: 1 },
+              latestCommentAt: { $max: "$createdAt" }
+            }
           }
+        ],
+        as: "commentStats"
+      }
+    },
+    {
+      $addFields: {
+        commentCount: {
+          $ifNull: [{ $arrayElemAt: ["$commentStats.commentCount", 0] }, 0]
+        },
+        latestCommentAt: {
+          $arrayElemAt: ["$commentStats.latestCommentAt", 0]
         }
       }
     },
     {
       $addFields: {
-        hasComments: { $gt: ["$commentCount", 0] },
-        activityAt: {
-          $cond: ["$hasComments", "$latestCommentAt", "$createdAt"]
-        }
+        hasComments: { $gt: ["$commentCount", 0] }
       }
     },
-    { $sort: { hasComments: -1, activityAt: -1, _id: -1 } },
+    {
+      $addFields: {
+        activityAt: { $cond: ["$hasComments", "$latestCommentAt", "$createdAt"] }
+      }
+    },
+    joinedRankStage(joinedIds),
+    { $sort: { joinedRank: -1, hasComments: -1, activityAt: -1, _id: -1 } },
     { $skip: skip },
     { $limit: limit },
     { $project: { _id: 1, commentCount: 1, latestCommentAt: 1 } }
@@ -124,9 +187,7 @@ async function listActivePosts(filter, skip, limit) {
     ])
   );
 
-  const docs = await hydratePostsQuery(
-    Post.find({ _id: { $in: orderedIds } })
-  );
+  const docs = await hydrateOrderedPosts(ordered);
   const docsById = new Map(docs.map((doc) => [String(doc._id), doc]));
 
   return orderedIds
@@ -140,12 +201,13 @@ router.get("/", async (req, res, next) => {
     const { page, limit, skip } = parsePagination(req.query);
     const filter = await buildListFilter(req.query);
     const currentUserId = req.currentUser?._id || null;
+    const joinedIds = joinedCommunityIds(req.currentUser);
 
     const total = await Post.countDocuments(filter);
 
     let posts;
     if (sort === "active") {
-      const items = await listActivePosts(filter, skip, limit);
+      const items = await listActivePosts(filter, skip, limit, joinedIds);
       posts = items.map(({ doc, stats }) => ({
         ...presentVotable(doc, currentUserId),
         commentCount: stats?.commentCount ?? 0,
@@ -153,12 +215,7 @@ router.get("/", async (req, res, next) => {
       }));
     } else {
       const direction = sort === "oldest" ? 1 : -1;
-      const docs = await hydratePostsQuery(
-        Post.find(filter)
-          .sort({ createdAt: direction, _id: direction })
-          .skip(skip)
-          .limit(limit)
-      );
+      const docs = await listStandardPosts(filter, skip, limit, direction, joinedIds);
       posts = await attachPostStats(docs, currentUserId);
     }
 
@@ -255,15 +312,10 @@ router.post("/:id/view", async (req, res, next) => {
 
 router.post("/", requireLogin, async (req, res, next) => {
   try {
-    const title = requireNonEmptyString(req.body.title, "Post title");
-    const content = requireNonEmptyString(req.body.content, "Post content");
+    const title = requireLength(req.body.title, "Post title", 100);
+    const content = requireValidUserContent(req.body.content, "Post content");
     const communityId = requireNonEmptyString(req.body.community, "Community");
-
-    if (title.length > 100) {
-      return res.status(400).json({
-        error: "Post title must be 100 characters or less."
-      });
-    }
+    const linkFlair = await normalizeLinkFlair(req.body.linkFlair);
 
     const community = await Community.findById(communityId);
     if (!community) {
@@ -277,7 +329,7 @@ router.post("/", requireLogin, async (req, res, next) => {
       content,
       community: community._id,
       postedBy: req.currentUser._id,
-      linkFlair: req.body.linkFlair || null,
+      linkFlair,
       views: 0,
       comments: [],
       upvotes: 0,
@@ -322,19 +374,13 @@ router.put("/:id", requireLogin, async (req, res, next) => {
     }
 
     if (Object.hasOwn(req.body, "title")) {
-      const title = requireNonEmptyString(req.body.title, "Post title");
-      if (title.length > 100) {
-        return res.status(400).json({
-          error: "Post title must be 100 characters or less."
-        });
-      }
-      post.title = title;
+      post.title = requireLength(req.body.title, "Post title", 100);
     }
     if (Object.hasOwn(req.body, "content")) {
-      post.content = requireNonEmptyString(req.body.content, "Post content");
+      post.content = requireValidUserContent(req.body.content, "Post content");
     }
     if (Object.hasOwn(req.body, "linkFlair")) {
-      post.linkFlair = req.body.linkFlair || null;
+      post.linkFlair = await normalizeLinkFlair(req.body.linkFlair);
     }
 
     await post.save();
@@ -365,7 +411,6 @@ router.delete("/:id", requireLogin, async (req, res, next) => {
     }
 
     await deletePostAndComments(post._id);
-    emitPostUpdated(post._id);
 
     return res.json({
       message: "Post deleted successfully."

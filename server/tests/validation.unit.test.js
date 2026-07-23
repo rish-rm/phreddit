@@ -4,7 +4,8 @@ import {
   validateEmail,
   passwordContainsForbiddenValue,
   validateRegistrationInput,
-  requireNonEmptyString
+  requireNonEmptyString,
+  requireValidUserContent
 } from "../utils/validation.js";
 
 test("validateEmail accepts valid email addresses", () => {
@@ -46,6 +47,21 @@ test("validateRegistrationInput enforces a minimum password length", () => {
   assert.ok(result.errors.some((message) => message.includes("at least 8 characters")));
 });
 
+test("validateRegistrationInput rejects unreasonably long passwords", () => {
+  const password = "x".repeat(129);
+  const result = validateRegistrationInput({
+    firstName: "Ava",
+    lastName: "Stone",
+    displayName: "avastone",
+    email: "ava@example.com",
+    password,
+    confirmPassword: password
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((message) => message.includes("128 characters or less")));
+});
+
 test("validateRegistrationInput returns all important registration validation errors", () => {
   const result = validateRegistrationInput({
     firstName: "Ava",
@@ -66,5 +82,24 @@ test("requireNonEmptyString reports client input errors as bad requests", () => 
   assert.throws(
     () => requireNonEmptyString("  ", "Greeting"),
     (error) => error.message === "Greeting is required." && error.status === 400
+  );
+});
+
+test("requireValidUserContent accepts secure links and rejects invalid Markdown links", () => {
+  assert.equal(
+    requireValidUserContent("Read [the docs](https://example.com/docs)", "Content", 100),
+    "Read [the docs](https://example.com/docs)"
+  );
+  assert.throws(
+    () => requireValidUserContent("Read [](https://example.com)", "Content"),
+    /non-empty text/
+  );
+  assert.throws(
+    () => requireValidUserContent("Read [docs](javascript:alert(1))", "Content"),
+    /http:\/\//
+  );
+  assert.throws(
+    () => requireValidUserContent("123456", "Content", 5),
+    /5 characters or less/
   );
 });

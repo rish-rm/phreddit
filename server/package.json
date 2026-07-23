@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "dev": "node --watch server.js",
     "init": "node init.js",
     "lint": "eslint .",
     "test:unit": "NODE_ENV=test node --test \"./tests/*.unit.test.js\"",

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("user can register (auto-login), log out, log back in, and create a community", async ({ page }) => {
+test("user can register, log in, and create a community", async ({ page }) => {
   const stamp = Date.now();
   const email = `e2e${stamp}@example.com`;
   const displayName = `e2euser${stamp}`;
@@ -25,11 +25,6 @@ test("user can register (auto-login), log out, log back in, and create a communi
   await page.locator("#confirmPassword").fill(password);
   await page.getByRole("button", { name: /sign up/i }).click();
 
-  // Registration auto-logs the user in and lands on Home.
-  await expect(page.getByRole("heading", { name: /home/i })).toBeVisible();
-
-  // Explicitly exercise the logout -> login path.
-  await page.getByRole("button", { name: /logout/i }).click();
   await expect(
     page.getByRole("heading", { name: /welcome to phreddit/i })
   ).toBeVisible();
@@ -41,7 +36,7 @@ test("user can register (auto-login), log out, log back in, and create a communi
   await page.locator("#loginPassword").fill(password);
   await page.getByRole("button", { name: /^login$/i }).click();
 
-  await expect(page.getByRole("heading", { name: /home/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /all posts/i })).toBeVisible();
 
   await page.getByRole("button", { name: /create community/i }).click();
 

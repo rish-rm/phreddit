@@ -22,9 +22,9 @@ export default function Profile() {
   const profileTargetId = viewedUserId || user?._id;
 
   useEffect(() => {
-    setActiveTab("posts");
+    setActiveTab(user?.isAdmin && !isViewingOther ? "users" : "posts");
     setEditing(null);
-  }, [viewedUserId]);
+  }, [viewedUserId, user?.isAdmin, isViewingOther]);
 
   useEffect(() => {
     if (!profileTargetId) return;
@@ -188,6 +188,19 @@ export default function Profile() {
     ...(user.isAdmin && !isViewingOther ? [{ id: "users", label: "Users" }] : [])
   ];
 
+  function moveTab(event, index) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    let targetIndex = index;
+    if (event.key === "ArrowLeft") targetIndex = (index - 1 + tabs.length) % tabs.length;
+    if (event.key === "ArrowRight") targetIndex = (index + 1) % tabs.length;
+    if (event.key === "Home") targetIndex = 0;
+    if (event.key === "End") targetIndex = tabs.length - 1;
+    const target = tabs[targetIndex];
+    setActiveTab(target.id);
+    document.getElementById(`profile-tab-${target.id}`)?.focus();
+  }
+
   return (
     <main className="card" aria-label="Profile Page">
       <ConfirmDialog
@@ -219,13 +232,16 @@ export default function Profile() {
       )}
 
       <div className="tab-row" role="tablist">
-        {tabs.map((tab) => (
+        {tabs.map((tab, index) => (
           <button
             key={tab.id}
+            id={`profile-tab-${tab.id}`}
             role="tab"
             aria-selected={activeTab === tab.id}
+            tabIndex={activeTab === tab.id ? 0 : -1}
             className={activeTab === tab.id ? "tab active" : "tab"}
             onClick={() => setActiveTab(tab.id)}
+            onKeyDown={(event) => moveTab(event, index)}
           >
             {tab.label}
           </button>
@@ -243,12 +259,12 @@ export default function Profile() {
           )}
           {editing.kind === "community" && (
             <>
-              <label>Name<input name="name" defaultValue={editing.item.name} required /></label>
-              <label>Description<textarea name="description" defaultValue={editing.item.description} required /></label>
+              <label>Name<input name="name" defaultValue={editing.item.name} required maxLength={100} /></label>
+              <label>Description<textarea name="description" defaultValue={editing.item.description} required maxLength={500} /></label>
             </>
           )}
           {editing.kind === "comment" && (
-            <label>Content<textarea name="content" defaultValue={editing.item.content} required /></label>
+            <label>Content<textarea name="content" defaultValue={editing.item.content} required maxLength={500} /></label>
           )}
           <div className="row-card-actions">
             <button type="submit">Save</button>
@@ -315,8 +331,8 @@ export default function Profile() {
             profile.comments.map((comment) => (
               <EditableItemRow
                 key={comment._id}
-                title={comment.content.length > 80 ? `${comment.content.slice(0, 80)}...` : comment.content}
-                subtitle={comment.post?.title ? `on "${comment.post.title}"` : ""}
+                title={comment.post?.title || "Deleted post"}
+                subtitle={comment.content.length > 20 ? `${comment.content.slice(0, 20)}...` : comment.content}
                 onEdit={() => setEditing({ kind: "comment", item: comment })}
                 onDelete={() => requestDelete("comment", comment)}
               />

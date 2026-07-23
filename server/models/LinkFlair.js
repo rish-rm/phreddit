@@ -6,7 +6,8 @@ const linkFlairSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      unique: true
+      unique: true,
+      maxlength: 30
     }
   },
   { timestamps: true }

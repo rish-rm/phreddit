@@ -9,6 +9,7 @@ export default function CreateCommunity() {
     name: "",
     description: ""
   });
+  const [submitting, setSubmitting] = useState(false);
 
   if (!user) {
     return (
@@ -23,6 +24,7 @@ export default function CreateCommunity() {
   async function submit(event) {
     event.preventDefault();
     try {
+      setSubmitting(true);
       const data = await api.createCommunity(form);
       refreshData();
       showMessage("Community created successfully.", "success");
@@ -30,6 +32,8 @@ export default function CreateCommunity() {
       navigate(newId ? `/communities/${newId}` : "/home");
     } catch (error) {
       showMessage(error.message, "error");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -42,6 +46,7 @@ export default function CreateCommunity() {
           id="communityName"
           placeholder="Community name"
           required
+          maxLength={100}
           value={form.name}
           onChange={(event) => setForm({ ...form, name: event.target.value })}
         />
@@ -50,11 +55,14 @@ export default function CreateCommunity() {
           id="communityDescription"
           placeholder="Community description"
           required
+          maxLength={500}
           value={form.description}
           onChange={(event) => setForm({ ...form, description: event.target.value })}
         />
         <div className="action-row">
-          <button type="submit">Submit</button>
+          <button type="submit" disabled={submitting}>
+            {submitting ? "Creating..." : "Submit"}
+          </button>
           <button type="button" onClick={() => navigate("/home")}>Cancel</button>
         </div>
       </form>
