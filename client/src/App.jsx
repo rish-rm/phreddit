@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Navigate,
   Outlet,
@@ -10,6 +10,7 @@ import {
 import { api } from "./api/client.js";
 import AppShell from "./components/AppShell.jsx";
 import Banner from "./components/Banner.jsx";
+import BootstrapScreen from "./components/BootstrapScreen.jsx";
 import Welcome from "./pages/Welcome.jsx";
 import Register from "./pages/Register.jsx";
 import Login from "./pages/Login.jsx";
@@ -72,6 +73,11 @@ export default function App() {
   const [message, setMessage] = useState(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [communities, setCommunities] = useState([]);
+  const [bootstrapState, setBootstrapState] = useState({
+    phase: "connecting",
+    error: ""
+  });
+  const bootstrapAbortRef = useRef(null);
 
   const showMessage = useCallback((text, tone = "info") => {
     setMessage({ text, tone });
@@ -93,6 +99,51 @@ export default function App() {
     }
   }, [refreshData, showMessage]);
 
+  const checkSession = useCallback(async () => {
+    bootstrapAbortRef.current?.abort();
+
+    const controller = new AbortController();
+    let didTimeout = false;
+    bootstrapAbortRef.current = controller;
+    setAuthChecked(false);
+    setBootstrapState({ phase: "connecting", error: "" });
+
+    const wakingTimer = setTimeout(() => {
+      setBootstrapState((current) =>
+        current.phase === "connecting"
+          ? { phase: "waking", error: "" }
+          : current
+      );
+    }, 3000);
+
+    const timeoutTimer = setTimeout(() => {
+      didTimeout = true;
+      controller.abort();
+    }, 60000);
+
+    try {
+      const data = await api.me({ signal: controller.signal });
+      setUser(data.user);
+      setAuthChecked(true);
+      setBootstrapState({ phase: "ready", error: "" });
+    } catch {
+      if (controller.signal.aborted && !didTimeout) return;
+
+      setBootstrapState({
+        phase: "error",
+        error: didTimeout
+          ? "The demo server did not respond within a minute."
+          : "The server could not be reached. Check your connection and try again."
+      });
+    } finally {
+      clearTimeout(wakingTimer);
+      clearTimeout(timeoutTimer);
+      if (bootstrapAbortRef.current === controller) {
+        bootstrapAbortRef.current = null;
+      }
+    }
+  }, []);
+
   async function logout() {
     try {
       await api.logout();
@@ -106,17 +157,9 @@ export default function App() {
   }
 
   useEffect(() => {
-    api
-      .me()
-      .then((data) => setUser(data.user))
-      .catch(() => {
-        showMessage(
-          "Could not connect to server. Make sure the backend is running.",
-          "error"
-        );
-      })
-      .finally(() => setAuthChecked(true));
-  }, [showMessage]);
+    void checkSession();
+    return () => bootstrapAbortRef.current?.abort();
+  }, [checkSession]);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -134,9 +177,11 @@ export default function App() {
 
   if (!authChecked) {
     return (
-      <main className="card">
-        <p className="muted">Loading Phreddit...</p>
-      </main>
+      <BootstrapScreen
+        phase={bootstrapState.phase}
+        error={bootstrapState.error}
+        onRetry={() => void checkSession()}
+      />
     );
   }
 
