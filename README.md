@@ -1,13 +1,13 @@
 # Phreddit
 
-[![CI](https://github.com/YOUR_GITHUB_USERNAME/phreddit/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/phreddit/actions)
-<!-- TODO: replace YOUR_GITHUB_USERNAME above after pushing -->
+[![CI](https://github.com/rish-rm/phreddit/actions/workflows/ci.yml/badge.svg)](https://github.com/rish-rm/phreddit/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Phreddit is a full-stack Reddit-inspired community forum built with React, Express, MongoDB, and Mongoose. It supports guest browsing, session-based accounts, communities, posts, link flair, unbounded-depth threaded comments, saved posts, toggleable reputation-aware voting, live post updates over WebSockets, Markdown rendering, public user profiles, reporting, and admin moderation flows.
 
 The project is structured as a portfolio-ready MERN application with client-side routing, server-side pagination and sorting, isolated backend integration tests, client unit tests, Playwright e2e coverage, and a CI pipeline.
 
-**Live demo:** _deploying — link coming soon_ <!-- TODO: deploy per the Deployment section, then put the Vercel URL here -->
+**Live demo:** [phreddit.vercel.app](https://phreddit.vercel.app)
 Demo login: `demo@example.com` / `DemoPass123!` (created by the seed script).
 
 ## Screenshots
@@ -18,7 +18,7 @@ Demo login: `demo@example.com` / `DemoPass123!` (created by the seed script).
 
 ## Features
 
-- Guest browsing plus registration (with immediate login), login, logout, and persisted sessions
+- Guest browsing plus registration, login, logout, and persisted sessions
 - Client-side routing with real URLs and deep links (`/posts/:id`, `/communities/:id`, `/users/:id`, `/search?q=...`)
 - Live post pages: comments, votes, and edits from other users appear in real time over Socket.IO
 - Server-side pagination and sorting (Newest, Oldest, Active) with a Load More UI
@@ -31,7 +31,7 @@ Demo login: `demo@example.com` / `DemoPass123!` (created by the seed script).
 - Post reporting with duplicate-report protection, an admin moderation queue, and optional resolution notes
 - Admin user list, viewing another user's profile, and cascade user deletion behind an accessible confirm dialog
 - Cascade deletion for communities, posts, comments, replies, and user-owned content
-- Session hardening: session ID regeneration on login/registration, 8+ character passwords, helmet security headers, CORS allowlist, auth rate limiting
+- Session hardening: session ID regeneration on login, 8-128 character passwords, helmet security headers, CORS allowlist, bounded auth rate limiting
 - Responsive layout, keyboard-visible focus states, loading/empty/error states, and toast notifications with distinct success/error styling
 - Unit (server + client), integration, and Playwright e2e tests, run in GitHub Actions CI
 
@@ -147,7 +147,7 @@ Server extras: `npm --prefix server run bench:seed` (seed ~2,000 posts into a be
 | Server integration (supertest, disposable DB per file) | `npm run test:int` | Yes | integration |
 | End-to-end (Playwright, boots API + client) | `npm run test:e2e` | Yes | e2e |
 
-Integration tests spin up the Express app in-process against a throwaway database, so they're safe to run repeatedly. The e2e suite registers two users to exercise both the self-vote gate and the full vote/unvote/switch lifecycle.
+Integration tests spin up the Express app in-process against a throwaway database, so they're safe to run repeatedly. Regression coverage includes multi-thread Active sorting, membership-aware pagination, private vote serialization, cascade reputation correction, and the vote lifecycle. The e2e suite exercises registration/login, creation, dedicated comment pages, profile management, and two-user voting.
 
 Contributing with an AI coding agent? Repo commands and invariants live in [AGENTS.md](AGENTS.md).
 
@@ -192,9 +192,23 @@ The client and API deploy separately.
 - **Comments:** fetched flat with one indexed query (`{ post: 1, createdAt: -1 }`) and assembled into a tree in memory — no depth limit, unlike nested populate.
 - **Search:** MongoDB text indexes on posts and comments; matching ids are resolved first because `$text` cannot appear inside `$or`.
 - **Listings:** pagination and all three sorts are computed database-side; "Active" uses an aggregation with a comments `$lookup`. Page-number pagination is intentional at this scale; cursor pagination is the documented next step if feeds grow unbounded.
-- **Sessions:** stored in MongoDB via connect-mongo; the session ID is regenerated on login and registration to prevent fixation. The `x-test-user-id` test header is compiled out of every environment except `NODE_ENV=test`.
+- **Sessions:** stored in MongoDB via connect-mongo; the session ID is regenerated on login to prevent fixation. Registration intentionally returns to Welcome before login, matching the assignment flow. The `x-test-user-id` test header is inert outside `NODE_ENV=test`.
 - **Cascade deletes** run children-first and are idempotent. Multi-document transactions (Atlas replica sets) are the production path for strict atomicity and are intentionally not required for local single-node MongoDB.
 - **Markdown** is rendered client-side with `marked` and sanitized with DOMPurify (scripts, event handlers, and `javascript:` URLs are stripped; links open in a new tab with `rel="noopener"`).
+
+The REST surface and authorization rules are summarized in [docs/API.md](docs/API.md). Security reporting and supported-version information live in [SECURITY.md](SECURITY.md).
+
+## Reliability and Security Review
+
+The release branch includes fixes found through adversarial review rather than happy-path testing alone:
+
+- Active sorting is tested with multiple commented posts and uses the latest comment timestamp.
+- Joined-community priority is computed before pagination, so later pages cannot reorder the feed.
+- `votedBy` arrays are stripped from every post/comment response, including private profile endpoints.
+- Deleting a voter reverses their reputation impact before removing vote records.
+- User-content limits and Markdown hyperlink rules are enforced by both forms and the API.
+- Duplicate-key races return a stable `409`, production requires a session secret, and auth limiter storage is bounded.
+- Destructive dialogs trap and restore focus; profile tabs support arrow, Home, and End keys.
 
 ## Portfolio Talking Points
 
@@ -203,3 +217,11 @@ The client and API deploy separately.
 - Replaced depth-limited nested populate with a flat fetch + in-memory tree build, turning N populate queries into one indexed query.
 - Added Socket.IO live updates with a no-op-in-tests emitter so the realtime layer never leaks into the test suite.
 - Closed a test-only auth header behind `NODE_ENV=test` after identifying it as a production auth bypass during a security review.
+
+## Assignment Contribution
+
+**Rishabh Mittal** designed and implemented the complete project: React interface and routing, Express/Mongoose API, session authentication, MongoDB models and cascade deletion, voting/reputation logic, Socket.IO updates, moderation and admin workflows, automated tests, CI, deployment configuration, documentation, and the final accessibility/security review.
+
+## License
+
+Released under the [MIT License](LICENSE).

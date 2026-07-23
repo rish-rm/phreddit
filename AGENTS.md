@@ -48,7 +48,8 @@ also `npm run test:e2e`, and update the specs in `client/e2e/` if flows moved.
 - The `x-test-user-id` header is honored ONLY when `NODE_ENV === "test"`
   (`server/middleware/auth.js`). Never widen this — it was a production auth
   bypass once already.
-- Regenerate the session on any privilege change (login AND register do this).
+- Regenerate the session on login. Registration intentionally returns to the
+  Welcome page without creating a session, matching the assignment flow.
 - Mongo gotchas already handled in `server/routes/postRoutes.js` — keep them:
   `$text` cannot live inside `$or` (resolve matching ids first), and
   aggregation pipelines do NOT auto-cast string ids (use `toObjectId()`).
@@ -73,8 +74,8 @@ also `npm run test:e2e`, and update the specs in `client/e2e/` if flows moved.
   `supertest.agent` for real session flows.
 - Client unit tests are colocated `src/**/*.test.{js,jsx}`; component tests
   need the `// @vitest-environment jsdom` pragma.
-- E2e specifics: registration auto-logs-in (do not log in after registering),
-  creating a post/community lands on its page (not Home), post titles are
+- E2e specifics: registration returns to Welcome and users then log in;
+  creating a post returns Home while a new community opens its page; post titles are
   LINKS not buttons, and authors cannot vote on their own posts — use a second
   user to test voting.
 
