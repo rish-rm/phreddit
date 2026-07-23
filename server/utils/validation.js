@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 
@@ -9,7 +11,36 @@ function validationError(message) {
 
 export function validateEmail(email) {
   if (typeof email !== "string") return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const normalized = email.trim();
+  if (normalized.length < 3 || normalized.length > 254) return false;
+
+  const atIndex = normalized.indexOf("@");
+  if (
+    atIndex <= 0 ||
+    atIndex !== normalized.lastIndexOf("@") ||
+    atIndex > 64
+  ) {
+    return false;
+  }
+
+  const localPart = normalized.slice(0, atIndex);
+  const domain = normalized.slice(atIndex + 1);
+  if (
+    localPart.startsWith(".") ||
+    localPart.endsWith(".") ||
+    domain.startsWith(".") ||
+    domain.endsWith(".") ||
+    !domain.includes(".") ||
+    localPart.includes("..") ||
+    domain.includes("..")
+  ) {
+    return false;
+  }
+
+  for (const character of normalized) {
+    if (character.trim() === "") return false;
+  }
+  return true;
 }
 
 export function emailIdPart(email) {
@@ -86,6 +117,14 @@ export function requireNonEmptyString(value, fieldName) {
   return value.trim();
 }
 
+export function requireValidObjectId(value, fieldName) {
+  const normalized = requireNonEmptyString(value, fieldName);
+  if (!mongoose.isValidObjectId(normalized)) {
+    throw validationError(`Invalid ${fieldName.toLowerCase()} id.`);
+  }
+  return new mongoose.Types.ObjectId(normalized);
+}
+
 export function requireLength(value, fieldName, maxLength) {
   const normalized = requireNonEmptyString(value, fieldName);
   if (normalized.length > maxLength) {
@@ -100,15 +139,37 @@ export function requireValidUserContent(value, fieldName, maxLength = null) {
     throw validationError(`${fieldName} must be ${maxLength} characters or less.`);
   }
 
-  const markdownLink = /\[([^\]]*)\]\(([^)]*)\)/g;
-  for (const match of normalized.matchAll(markdownLink)) {
-    const label = match[1].trim();
-    const url = match[2].trim();
-    if (!label || !/^https?:\/\/\S+$/i.test(url)) {
+  let cursor = 0;
+  while (cursor < normalized.length) {
+    const labelStart = normalized.indexOf("[", cursor);
+    if (labelStart === -1) break;
+    const labelEnd = normalized.indexOf("]", labelStart + 1);
+    if (labelEnd === -1) break;
+    if (normalized[labelEnd + 1] !== "(") {
+      cursor = labelEnd + 1;
+      continue;
+    }
+    const urlEnd = normalized.indexOf(")", labelEnd + 2);
+    if (urlEnd === -1) break;
+
+    const label = normalized.slice(labelStart + 1, labelEnd).trim();
+    const url = normalized.slice(labelEnd + 2, urlEnd).trim();
+    let parsedUrl = null;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      // The common validation error below intentionally covers malformed URLs.
+    }
+    if (
+      !label ||
+      !parsedUrl ||
+      !["http:", "https:"].includes(parsedUrl.protocol)
+    ) {
       throw validationError(
         `${fieldName} links must use non-empty text and an http:// or https:// URL.`
       );
     }
+    cursor = urlEnd + 1;
   }
 
   return normalized;

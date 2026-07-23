@@ -15,6 +15,8 @@ import postRoutes from "./routes/postRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import { attachCurrentUser } from "./middleware/auth.js";
+import { apiRateLimiter } from "./middleware/rateLimit.js";
+import { createTrustedOriginGuard } from "./middleware/requestSecurity.js";
 import { setIo } from "./realtime.js";
 import { ensureConfiguredAdmin } from "./utils/adminBootstrap.js";
 
@@ -38,6 +40,13 @@ export function getAllowedOrigins() {
 export function createApp({ useSessionStore = true } = {}) {
   const app = express();
   const allowedOrigins = getAllowedOrigins();
+  const cookieSameSite = process.env.SESSION_COOKIE_SAMESITE || "lax";
+  const cookieSecure =
+    process.env.SESSION_COOKIE_SECURE === "true" || cookieSameSite === "none";
+
+  if (cookieSecure || process.env.TRUST_PROXY === "true") {
+    app.set("trust proxy", 1);
+  }
 
   app.use(helmet());
 
@@ -49,21 +58,17 @@ export function createApp({ useSessionStore = true } = {}) {
           callback(null, true);
           return;
         }
-        callback(new Error(`CORS blocked for origin: ${origin}`));
+        const error = new Error("CORS origin is not allowed.");
+        error.status = 403;
+        callback(error);
       },
       credentials: true
     })
   );
 
+  app.use("/api", apiRateLimiter);
+  app.use("/api", createTrustedOriginGuard({ allowedOrigins }));
   app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "1mb" }));
-
-  const cookieSameSite = process.env.SESSION_COOKIE_SAMESITE || "lax";
-  const cookieSecure =
-    process.env.SESSION_COOKIE_SECURE === "true" || cookieSameSite === "none";
-
-  if (cookieSecure || process.env.TRUST_PROXY === "true") {
-    app.set("trust proxy", 1);
-  }
 
   if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET is required in production.");

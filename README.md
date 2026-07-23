@@ -8,7 +8,7 @@ Phreddit is a full-stack Reddit-inspired community forum built with React, Expre
 The project is structured as a portfolio-ready MERN application with client-side routing, server-side pagination and sorting, isolated backend integration tests, client unit tests, Playwright e2e coverage, and a CI pipeline.
 
 **Live demo:** [phreddit.vercel.app](https://phreddit.vercel.app)
-Demo login: `demo@example.com` / `DemoPass123!` (created by the seed script).
+Visitors can browse as a guest or register a new account.
 
 ## Screenshots
 
@@ -31,7 +31,7 @@ Demo login: `demo@example.com` / `DemoPass123!` (created by the seed script).
 - Post reporting with duplicate-report protection, an admin moderation queue, and optional resolution notes
 - Admin user list, viewing another user's profile, and cascade user deletion behind an accessible confirm dialog
 - Cascade deletion for communities, posts, comments, replies, and user-owned content
-- Session hardening: session ID regeneration on login, 8-128 character passwords, helmet security headers, CORS allowlist, bounded auth rate limiting
+- Session hardening: session ID regeneration on login, trusted-origin CSRF defense, helmet headers, CORS allowlist, and bounded global/auth rate limiting
 - Responsive layout, keyboard-visible focus states, loading/empty/error states, and toast notifications with distinct success/error styling
 - Unit (server + client), integration, and Playwright e2e tests, run in GitHub Actions CI
 
@@ -114,7 +114,7 @@ Server (`server/.env`):
 | `SESSION_COOKIE_SECURE` | `true` in production (HTTPS) | `false` |
 | `TRUST_PROXY` | `true` behind a reverse proxy (Render, etc.) | `false` |
 | `JSON_BODY_LIMIT` | Request body size cap | `1mb` |
-| `AUTH_RATE_LIMIT_*`, `DISABLE_RATE_LIMIT` | Login/register rate limiting | see `.env.example` |
+| `AUTH_RATE_LIMIT_*`, `API_RATE_LIMIT_*`, `DISABLE_RATE_LIMIT` | Login/register and global API rate limiting | see `.env.example` |
 
 Client (`client/.env`):
 
@@ -177,7 +177,7 @@ The client and API deploy separately.
 
 **API — Render (free):**
 1. Push this repo to GitHub, then in Render choose **New → Blueprint** and select the repo (`render.yaml` configures the service).
-2. Set `MONGO_URI` to the Atlas string and `CLIENT_ORIGIN` to your Vercel URL (e.g. `https://phreddit.vercel.app`). The blueprint already sets `SESSION_COOKIE_SAMESITE=none`, `SESSION_COOKIE_SECURE=true`, and `TRUST_PROXY=true` for cross-site cookies.
+2. Set `MONGO_URI` to the Atlas string and `CLIENT_ORIGIN` to your exact Vercel URL (e.g. `https://phreddit.vercel.app`). The blueprint already sets secure cross-site cookies, proxy trust, and the global API rate limit. Unsafe production requests require a matching `Origin`, providing CSRF protection for the cross-site session cookie.
 3. Verify `https://<api>.onrender.com/api/health` returns `{ "ok": true }`. Register the production owner through the app, set `ADMIN_EMAIL` to that existing account, and redeploy once; startup promotes it without storing or resetting its password.
 4. To replace an empty database with the complete local demo dataset instead, run `node server/init.js <adminEmail> <adminName> <adminPassword>` locally with `MONGO_URI` pointed at Atlas. This command intentionally clears existing Phreddit data first.
 
@@ -194,7 +194,7 @@ The client and API deploy separately.
 - **Comments:** fetched flat with one indexed query (`{ post: 1, createdAt: -1 }`) and assembled into a tree in memory — no depth limit, unlike nested populate.
 - **Search:** MongoDB text indexes on posts and comments; matching ids are resolved first because `$text` cannot appear inside `$or`.
 - **Listings:** pagination and all three sorts are computed database-side; "Active" uses an aggregation with a comments `$lookup`. Page-number pagination is intentional at this scale; cursor pagination is the documented next step if feeds grow unbounded.
-- **Sessions:** stored in MongoDB via connect-mongo; the session ID is regenerated on login to prevent fixation. Registration intentionally returns to Welcome before login, matching the assignment flow. The `x-test-user-id` test header is inert outside `NODE_ENV=test`.
+- **Sessions:** stored in MongoDB via connect-mongo; the session ID is regenerated on login to prevent fixation. Unsafe production requests must come from `CLIENT_ORIGIN` (or the API's own origin), preventing cross-site form attacks even though deployment requires `SameSite=None`. Registration intentionally returns to Welcome before login, matching the assignment flow. The `x-test-user-id` test header is inert outside `NODE_ENV=test`.
 - **Cascade deletes** run children-first and are idempotent. Multi-document transactions (Atlas replica sets) are the production path for strict atomicity and are intentionally not required for local single-node MongoDB.
 - **Markdown** is rendered client-side with `marked` and sanitized with DOMPurify (scripts, event handlers, and `javascript:` URLs are stripped; links open in a new tab with `rel="noopener"`).
 
@@ -210,6 +210,7 @@ The release branch includes fixes found through adversarial review rather than h
 - Deleting a voter reverses their reputation impact before removing vote records.
 - User-content limits and Markdown hyperlink rules are enforced by both forms and the API.
 - Duplicate-key races return a stable `409`, production requires a session secret, and auth limiter storage is bounded.
+- A global per-IP request budget protects every API route; unsafe methods also enforce a trusted browser origin before parsing request bodies.
 - Destructive dialogs trap and restore focus; profile tabs support arrow, Home, and End keys.
 
 ## Portfolio Talking Points
@@ -219,6 +220,7 @@ The release branch includes fixes found through adversarial review rather than h
 - Replaced depth-limited nested populate with a flat fetch + in-memory tree build, turning N populate queries into one indexed query.
 - Added Socket.IO live updates with a no-op-in-tests emitter so the realtime layer never leaks into the test suite.
 - Closed a test-only auth header behind `NODE_ENV=test` after identifying it as a production auth bypass during a security review.
+- Added layered request security after CodeQL review: global throttling, strict unsafe-request origin checks, linear-time validators, and explicit database-query normalization.
 
 ## Assignment Contribution
 

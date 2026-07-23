@@ -7,7 +7,7 @@ import { deleteCommentAndReplies } from "../utils/cascadeDelete.js";
 import { canUserVote } from "../utils/voting.js";
 import { applyVote } from "../utils/voteService.js";
 import { presentVotable } from "../utils/serialize.js";
-import { requireNonEmptyString, requireValidUserContent } from "../utils/validation.js";
+import { requireValidObjectId, requireValidUserContent } from "../utils/validation.js";
 import { emitPostUpdated } from "../realtime.js";
 
 const router = express.Router();
@@ -15,7 +15,7 @@ const router = express.Router();
 router.post("/", requireLogin, async (req, res, next) => {
   try {
     const content = requireValidUserContent(req.body.content, "Comment content", 500);
-    const postId = requireNonEmptyString(req.body.post, "Post");
+    const postId = requireValidObjectId(req.body.post, "Post");
 
     const post = await Post.findById(postId);
     if (!post) {
@@ -24,8 +24,11 @@ router.post("/", requireLogin, async (req, res, next) => {
       });
     }
 
-    const parentComment = req.body.parentComment
-      ? await Comment.findById(req.body.parentComment)
+    const parentCommentId = req.body.parentComment
+      ? requireValidObjectId(req.body.parentComment, "Parent comment")
+      : null;
+    const parentComment = parentCommentId
+      ? await Comment.findById(parentCommentId)
       : null;
 
     if (req.body.parentComment && !parentComment) {

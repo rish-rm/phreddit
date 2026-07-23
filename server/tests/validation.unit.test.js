@@ -15,6 +15,8 @@ test("validateEmail accepts valid email addresses", () => {
 test("validateEmail rejects invalid email addresses", () => {
   assert.equal(validateEmail("studentexample.com"), false);
   assert.equal(validateEmail("student@"), false);
+  assert.equal(validateEmail("student@example..com"), false);
+  assert.equal(validateEmail(`student@${"a".repeat(250)}.com`), false);
   assert.equal(validateEmail(""), false);
 });
 
@@ -87,8 +89,12 @@ test("requireNonEmptyString reports client input errors as bad requests", () => 
 
 test("requireValidUserContent accepts secure links and rejects invalid Markdown links", () => {
   assert.equal(
-    requireValidUserContent("Read [the docs](https://example.com/docs)", "Content", 100),
-    "Read [the docs](https://example.com/docs)"
+    requireValidUserContent(
+      "Read [the docs](https://example.com/docs) and [API](http://api.example.com)",
+      "Content",
+      100
+    ),
+    "Read [the docs](https://example.com/docs) and [API](http://api.example.com)"
   );
   assert.throws(
     () => requireValidUserContent("Read [](https://example.com)", "Content"),
